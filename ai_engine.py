@@ -1,4 +1,4 @@
-"""NEXUS AI engine: Together AI (Llama 3.1) via the official OpenAI SDK.
+"""NEXUS AI engine: OpenRouter (Llama 3.3 70B) via the official OpenAI SDK.
 
 Every public function returns usable data even if the API key is missing,
 the SDK is not installed, the model is throttled, or the reply is invalid.
@@ -26,8 +26,8 @@ load_dotenv(Path(__file__).with_name(".env"))
 load_dotenv()
 log = logging.getLogger("nexus.ai")
 
-# Using Together AI's hyper-fast, stable Llama 3.1 8B model
-PRIMARY_MODEL = "google/gemini-1.5-flash:free"
+# Using OpenRouter's permanently free, massive Llama 3.3 70B model (zero credits used)
+PRIMARY_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 CACHE_TTL = int(os.getenv("AI_CACHE_SECONDS", "60"))
 _cache: dict[str, tuple[float, dict]] = {}
 _last_error: str = ""
@@ -107,7 +107,7 @@ class SuggestionList(BaseModel):
 
 # ---------- Helpers ----------
 def _api_key() -> str:
-    raw = os.getenv("TOGETHER_API_KEY") or ""
+    raw = os.getenv("OPENROUTER_API_KEY") or ""
     return raw.strip().strip('"').strip("'").strip()
 
 
@@ -118,10 +118,10 @@ def _get_client():
     if not api_key:
         raise ValueError("KEY_MISSING")
     
-    # We use the OpenAI SDK, but route the URL to Together AI's servers
+    # CRITICAL FIX: Pointing the OpenAI SDK specifically to OpenRouter
     return OpenAI(
         api_key=api_key, 
-        base_url="https://api.together.xyz/v1"
+        base_url="https://openrouter.ai/api/v1"
     )
 
 
@@ -131,9 +131,9 @@ def _explain(exc: Exception) -> str:
     if OpenAI is None or "SDK_MISSING" in text:
         return "The openai package is not installed. Run: pip install openai"
     if "KEY_MISSING" in text:
-        return ("No TOGETHER_API_KEY found. Add it to your Railway variables.")
+        return ("No OPENROUTER_API_KEY found. Add it to your Railway variables.")
     if "401" in text or "unauthorized" in low:
-        return "API key rejected. Ensure you pasted the Together AI key correctly."
+        return "API key rejected. Ensure you pasted the OpenRouter key correctly."
     if "429" in text or "rate limit" in low:
         return "Free limit reached. Wait a minute and try again."
     if any(w in low for w in ("connect", "timed out", "timeout", "network")):
@@ -161,11 +161,11 @@ def get_ai_status(force: bool = False) -> dict[str, Any]:
             model=PRIMARY_MODEL,
             max_tokens=10
         )
-        data = {"live": True, "model": "Llama-3.1 (Together AI)", "reason": "Connected successfully."}
+        data = {"live": True, "model": "Llama-3.3 70B (OpenRouter)", "reason": "Connected successfully."}
         _last_error = ""
     except Exception as exc:
         _last_error = _explain(exc)
-        data = {"live": False, "model": "Llama-3.1", "reason": _last_error}
+        data = {"live": False, "model": PRIMARY_MODEL, "reason": _last_error}
     _status_cache.update(at=time.time(), data=data)
     return data
 
@@ -355,7 +355,7 @@ def run_diagnosis(campaign_data: dict) -> dict[str, Any]:
     prompt = "Find the main reason this campaign is underperforming and the best single fix. Scores are 0 to 100.\n" + _json(campaign_data)
     data = _generate("diagnosis", prompt, DiagnosisResult, 0.2)
     if data:
-        data["source"] = "together-ai"
+        data["source"] = "openrouter"
         return data
     fb = _fallback_diagnosis()
     fb["source"] = "fallback"
@@ -366,7 +366,7 @@ def predict_future_performance(campaign_data: dict) -> dict[str, Any]:
     data = _generate("forecast", prompt, ForecastResult, 0.4)
     if data and len(data.get("integration_suggestions", [])) >= 1:
         data["integration_suggestions"] = data["integration_suggestions"][:3]
-        data["source"] = "together-ai"
+        data["source"] = "openrouter"
         return data
     fb = _fallback_forecast()
     fb["source"] = "fallback"
@@ -403,7 +403,7 @@ def analyze_omnichannel_feedback(feedback_list: list) -> dict[str, Any]:
     prompt = "Read these customer reviews. Give the share of positive, neutral and negative (adding to 1), a short summary, the main topics, and advice for improving the ads.\n" + _json(feedback_list)
     data = _generate("feedback", prompt, FeedbackReport, 0.2)
     if data:
-        data["source"] = "together-ai"
+        data["source"] = "openrouter"
         return data
     fb = _fallback_feedback(feedback_list)
     fb["source"] = "fallback"
@@ -481,6 +481,6 @@ def get_section_tip(section: str, context_data: dict) -> dict[str, Any]:
     prompt = f"The owner just opened the '{section}' page. Give one useful, specific tip about {focus}. Use the real numbers below.\n" + _json(context_data)
     data = _generate("tip-" + section, prompt, SectionTip, 0.4)
     if data:
-        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "together-ai"}
+        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "openrouter"}
     title, tip = _TIPS.get(section, _TIPS["overview"])
     return {"section": section, "title": title, "tip": tip, "source": "fallback"}
