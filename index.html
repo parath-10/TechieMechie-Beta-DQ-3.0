@@ -484,7 +484,6 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
 .rail button { width: 24px; height: 12px; display: grid; place-items: center; }
 .rail i { display: block; width: 12px; height: 1px; background: rgba(223,231,224,.28); transition: .5s var(--ease-out); }
 .rail button.on i { width: 22px; background: var(--bone); }
-.cur-dot { display: none !important; }
 .cur-dot { position: fixed; z-index: 80; top: 0; left: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 1px solid rgba(223,231,224,.4); border-radius: 50%; pointer-events: none; opacity: 0; transition: width .35s var(--ease-out), height .35s var(--ease-out), margin .35s var(--ease-out), background .35s; }
 .cur-dot.act { width: 50px; height: 50px; margin: -25px 0 0 -25px; background: rgba(223,231,224,.06); }
 @media (hover: hover) and (pointer: fine) { .cur-dot { opacity: 1; } }
@@ -897,8 +896,8 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     </form>
     <div class="auth-demo">
       <strong>View-only demo account</strong><br>
-      Email: <code>manager@nexus,com</code><br>
-      Password: <code>nexus@123</code>
+      Email: <code>demo@nexus.local</code><br>
+      Password: <code>Nexus123!</code>
     </div>
     <div class="auth-status">Environment · <span>Demo / local</span></div>
   </div>
@@ -1542,7 +1541,7 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
   });
 
   /* ---------------------------------------------- CARD TILT + CURSOR */
-  if (false) { /* card tilt turned off */
+  if (finePointer && !reduce) {
     document.querySelectorAll('.card').forEach(card => {
       const fr = card.querySelector('.card-fr');
       card.addEventListener('mousemove', e => {
@@ -1639,8 +1638,8 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     });
   }, { passive: true });
 
-  /* magnetic pull turned off */
-  if (false) {
+  /* soft magnetic pull for primary buttons */
+  if (fine) {
     document.querySelectorAll('.btn-primary').forEach(btn => {
       btn.addEventListener('pointermove', e => {
         const r = btn.getBoundingClientRect();
@@ -1705,125 +1704,287 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
   const floatPoints = new THREE.Points(floatGeo, floatMat);
   scene.add(floatPoints);
 
-  // ---------- Build accurate Wall-E volume samples ----------
-  // Design units roughly match a character ~3.2 units tall
-  function sampleBox(cx, cy, cz, w, h, d, n, color) {
-    const pts = [];
-    for (let i = 0; i < n; i++) {
-      pts.push({
-        x: cx + (Math.random() - 0.5) * w,
-        y: cy + (Math.random() - 0.5) * h,
-        z: cz + (Math.random() - 0.5) * d,
-        r: color[0], g: color[1], b: color[2]
-      });
-    }
-    return pts;
+  // ---------- Build Wall-E as a shaded, weathered surface point cloud ----------
+  // Points are sampled on the SURFACES of each part (so the silhouette and panel
+  // detail read clearly), with baked top-front lighting and rust / grime variation.
+  const DENS = 215;                              // points per square unit of flat panel
+  const SCALE = 0.88;                            // overall model scale
+  const CENTER_Y = 0.34;                         // recentre the model vertically
+  const LIGHT = (function () { const l = [0.35, 0.82, 0.45], m = Math.hypot(l[0], l[1], l[2]); return [l[0] / m, l[1] / m, l[2] / m]; })();
+
+  // Palette (0-1)
+  const YELLOW   = [0.93, 0.66, 0.14];
+  const YELLOW_D = [0.74, 0.48, 0.10];
+  const RUST     = [0.55, 0.28, 0.09];
+  const TREAD    = [0.27, 0.29, 0.32];
+  const TREAD_L  = [0.44, 0.46, 0.50];
+  const METAL    = [0.55, 0.57, 0.61];
+  const METAL_L  = [0.78, 0.80, 0.83];
+  const DARK     = [0.08, 0.09, 0.10];
+  const GLASS    = [0.13, 0.23, 0.35];
+  const GLASS_L  = [0.42, 0.72, 0.90];
+  const IRIS     = [0.07, 0.13, 0.25];
+  const PUPIL    = [0.02, 0.03, 0.05];
+
+  const all = [];
+
+  function hash3(x, y, z) {
+    const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+    return s - Math.floor(s);
   }
-  function sampleCylinder(cx, cy, cz, radius, height, n, color, axis) {
-    // axis: 'z' (lens pointing forward) or 'y'
-    const pts = [];
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const rr = radius * Math.sqrt(Math.random());
-      let x, y, z;
-      if (axis === 'z') {
-        x = cx + Math.cos(a) * rr;
-        y = cy + Math.sin(a) * rr;
-        z = cz + (Math.random() - 0.5) * height;
-      } else {
-        x = cx + Math.cos(a) * rr;
-        z = cz + Math.sin(a) * rr;
-        y = cy + (Math.random() - 0.5) * height;
+
+  // Colour for one sample: weathering (rust blotches, lower-body grime), baked light, per-dot jitter
+  function paint(c, x, y, z, nx, ny, nz, weather) {
+    let r = c[0], g = c[1], b = c[2];
+    if (weather) {
+      const n = Math.sin(x * 3.1 + z * 2.3) * Math.sin(y * 3.7 + x * 1.3) * Math.sin(z * 3.3 + y * 2.1);
+      if (n > 0.28) {
+        const k = Math.min(1, (n - 0.28) * 3.2) * 0.6;
+        r += (RUST[0] - r) * k; g += (RUST[1] - g) * k; b += (RUST[2] - b) * k;
       }
-      pts.push({ x, y, z, r: color[0], g: color[1], b: color[2] });
+      const dirt = Math.max(0, Math.min(1, (-0.2 - y) * 0.5)) * 0.5;
+      r *= 1 - dirt; g *= 1 - dirt; b *= 1 - dirt * 0.8;
     }
-    return pts;
+    const l = Math.max(0, nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]);
+    const f = (0.56 + 0.56 * l) * (0.9 + 0.2 * hash3(x * 91.7, y * 53.3, z * 77.1));
+    return [Math.min(1, r * f), Math.min(1, g * f), Math.min(1, b * f)];
   }
-  function sampleSphere(cx, cy, cz, radius, n, color) {
-    const pts = [];
+
+  // ----- surface generators (local space; each returns {area, pick()} with pick() = [x,y,z,nx,ny,nz]) -----
+  function boxGen(w, h, d) {
+    const ax = h * d, ay = w * d, az = w * h, tot = 2 * (ax + ay + az);
+    return {
+      area: tot,
+      pick() {
+        let u = Math.random() * tot; const s = Math.random() < 0.5 ? -1 : 1;
+        if (u < 2 * ax) return [s * w / 2, (Math.random() - 0.5) * h, (Math.random() - 0.5) * d, s, 0, 0];
+        u -= 2 * ax;
+        if (u < 2 * ay) return [(Math.random() - 0.5) * w, s * h / 2, (Math.random() - 0.5) * d, 0, s, 0];
+        return [(Math.random() - 0.5) * w, (Math.random() - 0.5) * h, s * d / 2, 0, 0, s];
+      }
+    };
+  }
+  function cylGen(r, len, capF, capB) {      // axis = local z
+    const side = 2 * Math.PI * r * len, cap = Math.PI * r * r;
+    const tot = side + (capF ? cap : 0) + (capB ? cap : 0);
+    return {
+      area: tot,
+      pick() {
+        const u = Math.random() * tot, a = Math.random() * Math.PI * 2;
+        if (u < side) return [r * Math.cos(a), r * Math.sin(a), (Math.random() - 0.5) * len, Math.cos(a), Math.sin(a), 0];
+        const rr = r * Math.sqrt(Math.random());
+        const front = capF && (!capB || u < side + cap);
+        return [rr * Math.cos(a), rr * Math.sin(a), front ? len / 2 : -len / 2, 0, 0, front ? 1 : -1];
+      }
+    };
+  }
+  // Disc / ring facing +z. dome bulges the middle forward (for convex lenses).
+  function discGen(r, rIn, dome, domeR, zoff) {
+    rIn = rIn || 0; dome = dome || 0; domeR = domeR || r; zoff = zoff || 0;
+    return {
+      area: Math.PI * (r * r - rIn * rIn),
+      pick() {
+        const rr = Math.sqrt(rIn * rIn + Math.random() * (r * r - rIn * rIn)), a = Math.random() * Math.PI * 2;
+        const t = rr / domeR;
+        return [rr * Math.cos(a), rr * Math.sin(a), zoff + dome * (1 - t * t), 0, 0, 1];
+      }
+    };
+  }
+  function sphereGen(r) {
+    return {
+      area: 4 * Math.PI * r * r,
+      pick() {
+        const z = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, s = Math.sqrt(1 - z * z);
+        const nx = s * Math.cos(a), ny = s * Math.sin(a);
+        return [r * nx, r * ny, r * z, nx, ny, z];
+      }
+    };
+  }
+  // Rounded-trapezoid prism for the tread side profile: poly = [[z,y],...] (CCW), extruded across x.
+  // Only the OUTER face (x = side*w/2) and the belt edges are emitted; the inner face is hidden by the body.
+  function prismGen(poly, w, side) {
+    const n = poly.length;
+    let a2 = 0; for (let i = 0; i < n; i++) { const p = poly[i], q = poly[(i + 1) % n]; a2 += p[0] * q[1] - q[0] * p[1]; }
+    const faceA = Math.abs(a2) / 2, flip = a2 < 0 ? -1 : 1;
+    const edges = []; let per = 0;
     for (let i = 0; i < n; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = 2 * Math.PI * u;
-      const phi = Math.acos(2 * v - 1);
-      const rr = radius * Math.cbrt(Math.random());
-      pts.push({
-        x: cx + rr * Math.sin(phi) * Math.cos(theta),
-        y: cy + rr * Math.sin(phi) * Math.sin(theta),
-        z: cz + rr * Math.cos(phi),
-        r: color[0], g: color[1], b: color[2]
-      });
+      const p = poly[i], q = poly[(i + 1) % n], dz = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dz, dy);
+      edges.push({ p, dz, dy, L, nz: flip * dy / L, ny: -flip * dz / L }); per += L;
     }
-    return pts;
+    let zmin = 1e9, zmax = -1e9, ymin = 1e9, ymax = -1e9;
+    poly.forEach(p => { zmin = Math.min(zmin, p[0]); zmax = Math.max(zmax, p[0]); ymin = Math.min(ymin, p[1]); ymax = Math.max(ymax, p[1]); });
+    function inside(z, y) {
+      let c = false;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a[1] > y) !== (b[1] > y) && z < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+      }
+      return c;
+    }
+    const sideA = per * w, tot = faceA + sideA;
+    return {
+      area: tot,
+      pick() {
+        if (Math.random() * tot < faceA) {
+          for (let k = 0; k < 60; k++) {
+            const z = zmin + Math.random() * (zmax - zmin), y = ymin + Math.random() * (ymax - ymin);
+            if (inside(z, y)) return [side * w / 2, y, z, side, 0, 0];
+          }
+          return [side * w / 2, (ymin + ymax) / 2, (zmin + zmax) / 2, side, 0, 0];
+        }
+        let u = Math.random() * per, e = edges[0];
+        for (let i = 0; i < n; i++) { if (u < edges[i].L) { e = edges[i]; break; } u -= edges[i].L; }
+        const t = u / e.L;
+        return [(Math.random() - 0.5) * w, e.p[1] + t * e.dy, e.p[0] + t * e.dz, 0, e.ny, e.nz];
+      }
+    };
   }
 
-  // Colors (0-1)
-  const YELLOW = [0.91, 0.63, 0.12];
-  const YELLOW_D = [0.75, 0.50, 0.10];
-  const TREAD = [0.18, 0.20, 0.23];
-  const METAL = [0.35, 0.38, 0.42];
-  const LENS = [0.43, 0.77, 0.91];
-  const PUPIL = [0.07, 0.09, 0.12];
-  const SOLAR = [0.16, 0.29, 0.42];
-  const CLAMP = [0.63, 0.44, 0.12];
-
-  let all = [];
-
-  // === TREADS (left / right) — wide tank tracks ===
-  all = all.concat(sampleBox(-1.15, -1.35, 0, 1.3, 0.55, 0.95, 900, TREAD));
-  all = all.concat(sampleBox( 1.15, -1.35, 0, 1.3, 0.55, 0.95, 900, TREAD));
-  // tread cleats
-  for (let i = -2; i <= 2; i++) {
-    all = all.concat(sampleBox(-1.15 + i * 0.22, -1.35, 0, 0.14, 0.4, 1.0, 80, METAL));
-    all = all.concat(sampleBox( 1.15 + i * 0.22, -1.35, 0, 0.14, 0.4, 1.0, 80, METAL));
+  // Place a generator into the world: o.p position, o.r Euler(YXZ) or o.q quaternion, o.d density multiplier, o.w weather
+  function add(gen, col, o) {
+    o = o || {};
+    const q = o.q || new THREE.Quaternion().setFromEuler(new THREE.Euler((o.r || [0, 0, 0])[0], (o.r || [0, 0, 0])[1], (o.r || [0, 0, 0])[2], 'YXZ'));
+    const P = o.p || [0, 0, 0];
+    const cnt = o.n || Math.max(4, Math.round(gen.area * DENS * (o.d || 1)));
+    const v = new THREE.Vector3(), nn = new THREE.Vector3();
+    for (let i = 0; i < cnt; i++) {
+      const s = gen.pick();
+      v.set(s[0], s[1], s[2]).applyQuaternion(q);
+      nn.set(s[3], s[4], s[5]).applyQuaternion(q);
+      const x = v.x + P[0], y = v.y + P[1], z = v.z + P[2];
+      const c = paint(col, x, y, z, nn.x, nn.y, nn.z, o.w);
+      all.push({ x, y, z, r: c[0], g: c[1], b: c[2] });
+    }
+  }
+  function qOf(rx, ry, rz) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')); }
+  // Cylinder from point a to point b
+  function tube(a, b, rad, col, o) {
+    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = d.length();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.normalize());
+    add(cylGen(rad, len, true, true), col, Object.assign({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], q }, o || {}));
+  }
+  // Thin line of dots between two points (panel seams, frames)
+  function seg(a, b, col, dens) {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), cnt = Math.max(2, Math.round(L * (dens || 48)));
+    for (let i = 0; i < cnt; i++) {
+      const t = Math.random(), x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t, z = a[2] + (b[2] - a[2]) * t;
+      const j = 0.9 + 0.2 * hash3(x * 91.7, y * 53.3, z * 77.1);
+      all.push({ x, y, z, r: Math.min(1, col[0] * j), g: Math.min(1, col[1] * j), b: Math.min(1, col[2] * j) });
+    }
+  }
+  function boxEdges(w, h, d, c, col, dens) {
+    const x0 = c[0] - w / 2, x1 = c[0] + w / 2, y0 = c[1] - h / 2, y1 = c[1] + h / 2, z0 = c[2] - d / 2, z1 = c[2] + d / 2;
+    const C = [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+    [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(e => seg(C[e[0]], C[e[1]], col, dens));
   }
 
-  // === MAIN BODY (boxy, slightly forward-heavy like Wall-E) ===
-  all = all.concat(sampleBox(0, -0.2, 0.05, 2.15, 1.5, 1.55, 2800, YELLOW));
-  // horizontal panel lines
-  all = all.concat(sampleBox(0, 0.28, 0.1, 2.0, 0.08, 1.4, 200, YELLOW_D));
-  all = all.concat(sampleBox(0, -0.05, 0.1, 2.0, 0.08, 1.4, 200, YELLOW_D));
-  all = all.concat(sampleBox(0, -0.38, 0.1, 2.0, 0.08, 1.4, 200, YELLOW_D));
-  // front trash slot
-  all = all.concat(sampleBox(0, -0.7, 0.82, 1.25, 0.22, 0.12, 180, TREAD));
+  // ================= TORSO (the compactor box) =================
+  add(boxGen(2.0, 1.7, 1.8), YELLOW, { p: [0, -0.08, 0], w: true, d: 1.45 });
+  boxEdges(2.0, 1.7, 1.8, [0, -0.08, 0], [0.50, 0.32, 0.07], 55);
+  // corrugated ribs on both flanks
+  [-1, 1].forEach(s => {
+    [-0.72, -0.48, -0.24].forEach(y => add(boxGen(0.05, 0.06, 1.55), YELLOW_D, { p: [s * 1.02, y, 0], d: 1.4, w: true }));
+  });
+  // front: control panel with three indicator buttons, vent slits, lower hatch
+  add(boxGen(1.2, 0.46, 0.04), DARK, { p: [0, 0.32, 0.91], d: 1.2 });
+  boxEdges(1.24, 0.5, 0.05, [0, 0.32, 0.91], METAL, 50);
+  [[-0.32, [0.88, 0.13, 0.10]], [0, [0.96, 0.68, 0.12]], [0.32, [0.22, 0.78, 0.36]]].forEach(b =>
+    add(discGen(0.06, 0, 0.02, 0.06, 0), b[1], { p: [b[0], 0.32, 0.935], n: 40 }));
+  [0.02, -0.08, -0.18, -0.28].forEach(y => add(boxGen(0.9, 0.035, 0.03), DARK, { p: [0, y, 0.91], d: 1.6 }));
+  [[-0.78, -0.82, 0.78, -0.82], [-0.78, -0.44, 0.78, -0.44], [-0.78, -0.82, -0.78, -0.44], [0.78, -0.82, 0.78, -0.44]]
+    .forEach(l => seg([l[0], l[1], 0.915], [l[2], l[3], 0.915], [0.42, 0.27, 0.06], 60));
+  add(boxGen(0.34, 0.05, 0.05), METAL, { p: [0, -0.63, 0.94], d: 1.4 });
+  // back hatch outline
+  [[-0.82, -0.78, 0.82, -0.78], [-0.82, 0.55, 0.82, 0.55], [-0.82, -0.78, -0.82, 0.55], [0.82, -0.78, 0.82, 0.55]]
+    .forEach(l => seg([l[0], l[1], -0.915], [l[2], l[3], -0.915], [0.42, 0.27, 0.06], 60));
+  // undercarriage joining the two tracks
+  add(boxGen(1.95, 0.45, 1.5), TREAD, { p: [0, -1.16, 0], d: 0.6 });
+  // neck base plate
+  add(boxGen(0.56, 0.12, 0.56), TREAD_L, { p: [0, 0.83, -0.08] });
 
-  // === NECK ===
-  all = all.concat(sampleBox(0, 0.7, 0, 0.38, 0.42, 0.38, 220, YELLOW_D));
+  // ================= TREADS =================
+  const TREAD_W = 0.68, TREAD_X = 1.37;
+  const TREAD_POLY = [[-1.05, -1.62], [1.15, -1.62], [1.38, -1.0], [0.98, -0.22], [-0.85, -0.22], [-1.28, -1.0]];
+  const WHEELS = [[-0.78, -1.25, 0.30], [0.0, -1.33, 0.23], [0.80, -1.25, 0.30], [-0.52, -0.52, 0.14], [0.60, -0.52, 0.14]];
+  [-1, 1].forEach(s => {
+    const qx = qOf(0, s * Math.PI / 2, 0);                     // turns +z-facing discs to face outward (+/-x)
+    add(prismGen(TREAD_POLY, TREAD_W, s), TREAD, { p: [s * TREAD_X, 0, 0], d: 1.1 });
+    // belt cleats: lighter ridges across the track, walked evenly around the outline
+    let carry = 0;
+    for (let i = 0; i < TREAD_POLY.length; i++) {
+      const p = TREAD_POLY[i], q = TREAD_POLY[(i + 1) % TREAD_POLY.length];
+      const dz = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dz, dy);
+      for (let u = carry; u < L; u += 0.13) {
+        const t = u / L, z = p[0] + dz * t, y = p[1] + dy * t;
+        for (let k = 0; k < 7; k++) {
+          const x = s * TREAD_X + (k / 6 - 0.5) * TREAD_W;
+          all.push({ x, y, z, r: TREAD_L[0], g: TREAD_L[1], b: TREAD_L[2] });
+        }
+      }
+      carry = ((carry - L) % 0.13 + 0.13) % 0.13;
+    }
+    // road wheels on the outer face
+    WHEELS.forEach(w => {
+      const px = s * (TREAD_X + TREAD_W / 2 + 0.012);
+      add(discGen(w[2], w[2] * 0.82, 0, 0, 0.0), METAL_L, { p: [px, w[1], w[0]], q: qx, d: 1.8 });
+      add(discGen(w[2] * 0.82, 0, 0, 0, 0.004), METAL, { p: [px, w[1], w[0]], q: qx, d: 1.4 });
+      add(discGen(w[2] * 0.34, 0, 0.02, w[2] * 0.34, 0.008), DARK, { p: [px, w[1], w[0]], q: qx, d: 2.2 });
+    });
+  });
 
-  // === HEAD (binocular block) ===
-  all = all.concat(sampleBox(0, 1.28, 0, 1.5, 0.9, 0.95, 1200, YELLOW));
-
-  // Eye housings (cylinders pointing forward)
-  all = all.concat(sampleCylinder(-0.40, 1.30, 0.35, 0.40, 0.45, 500, YELLOW_D, 'z'));
-  all = all.concat(sampleCylinder( 0.40, 1.30, 0.35, 0.40, 0.45, 500, YELLOW_D, 'z'));
-
-  // Blue glass lenses
-  all = all.concat(sampleCylinder(-0.40, 1.30, 0.55, 0.30, 0.14, 320, LENS, 'z'));
-  all = all.concat(sampleCylinder( 0.40, 1.30, 0.55, 0.30, 0.14, 320, LENS, 'z'));
-
-  // Pupils
-  all = all.concat(sampleSphere(-0.40, 1.30, 0.64, 0.11, 90, PUPIL));
-  all = all.concat(sampleSphere( 0.40, 1.30, 0.64, 0.11, 90, PUPIL));
-
-  // === SOLAR PANEL on top of head ===
-  all = all.concat(sampleBox(0, 1.78, -0.05, 1.0, 0.08, 0.55, 200, SOLAR));
-  for (let i = -1; i <= 1; i++) {
-    all = all.concat(sampleBox(i * 0.28, 1.82, -0.05, 0.22, 0.04, 0.42, 50, LENS));
+  // ================= NECK (bellows) =================
+  const N0 = [0, 0.80, -0.08], N1 = [0, 1.46, 0.14];
+  const neckQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(N1[0] - N0[0], N1[1] - N0[1], N1[2] - N0[2]).normalize());
+  for (let k = 0; k <= 9; k++) {
+    const t = k / 9, rad = k % 2 ? 0.20 : 0.145;
+    add(cylGen(rad, 0.075, false, false), k % 2 ? METAL : TREAD_L,
+      { p: [N0[0] + (N1[0] - N0[0]) * t, N0[1] + (N1[1] - N0[1]) * t, N0[2] + (N1[2] - N0[2]) * t], q: neckQ, d: 1.5 });
   }
 
-  // === ARMS + CLAMPS ===
-  // Left
-  all = all.concat(sampleBox(-1.35, 0.2, 0.1, 0.35, 0.25, 0.75, 280, YELLOW_D));
-  all = all.concat(sampleBox(-1.45, -0.25, 0.3, 0.28, 0.65, 0.28, 260, YELLOW));
-  all = all.concat(sampleBox(-1.45, -0.65, 0.3, 0.5, 0.16, 0.28, 140, CLAMP));
-  all = all.concat(sampleBox(-1.60, -0.82, 0.3, 0.12, 0.32, 0.12, 60, CLAMP));
-  all = all.concat(sampleBox(-1.30, -0.82, 0.3, 0.12, 0.32, 0.12, 60, CLAMP));
-  // Right
-  all = all.concat(sampleBox( 1.35, 0.2, 0.1, 0.35, 0.25, 0.75, 280, YELLOW_D));
-  all = all.concat(sampleBox( 1.45, -0.25, 0.3, 0.28, 0.65, 0.28, 260, YELLOW));
-  all = all.concat(sampleBox( 1.45, -0.65, 0.3, 0.5, 0.16, 0.28, 140, CLAMP));
-  all = all.concat(sampleBox( 1.60, -0.82, 0.3, 0.12, 0.32, 0.12, 60, CLAMP));
-  all = all.concat(sampleBox( 1.30, -0.82, 0.3, 0.12, 0.32, 0.12, 60, CLAMP));
+  // ================= HEAD: binocular eyes on a bridge block =================
+  const HEAD = [0, 1.80, 0.28];
+  add(boxGen(1.25, 0.50, 0.44), YELLOW_D, { p: [HEAD[0], HEAD[1] - 0.08, HEAD[2] - 0.12], w: true });
+  boxEdges(1.25, 0.50, 0.44, [HEAD[0], HEAD[1] - 0.08, HEAD[2] - 0.12], [0.45, 0.29, 0.06], 50);
+  [-1, 1].forEach(s => {
+    const base = [HEAD[0] + s * 0.53, HEAD[1], HEAD[2] + 0.24];
+    const q = qOf(0.20, s * 0.15, 0);                           // tilt down a little, toe-out a little
+    const loc = (lx, ly, lz) => { const v = new THREE.Vector3(lx, ly, lz).applyQuaternion(q); return [base[0] + v.x, base[1] + v.y, base[2] + v.z]; };
+    // barrel + ridges
+    add(cylGen(0.43, 0.74, false, true), YELLOW, { p: base, q, w: true, d: 1.3 });
+    add(cylGen(0.447, 0.07, false, false), YELLOW_D, { p: loc(0, 0, -0.06), q, d: 1.6 });
+    add(cylGen(0.447, 0.07, false, false), YELLOW_D, { p: loc(0, 0, 0.18), q, d: 1.6 });
+    // front rim
+    add(discGen(0.44, 0.36, 0, 0, 0.372), METAL_L, { p: loc(0, 0, 0), q, d: 2.2 });
+    // convex glass lens in layers: dark glass, bright ring, iris, pupil, highlight
+    const D = 0.13, DR = 0.36;
+    add(discGen(0.36, 0, D, DR, 0.370), GLASS,   { p: loc(0, 0, 0), q, d: 2.4 });
+    add(discGen(0.30, 0.17, D, DR, 0.376), GLASS_L, { p: loc(0, 0, 0), q, d: 2.4 });
+    add(discGen(0.17, 0, D, DR, 0.382), IRIS,    { p: loc(0, 0, 0), q, d: 3.0 });
+    add(discGen(0.085, 0, D, DR, 0.388), PUPIL,  { p: loc(0, 0, 0), q, d: 4.0 });
+    add(sphereGen(0.034), [1, 1, 1], { p: loc(-0.09 * s, 0.11, 0.50), q, n: 36 });
+    // expressive brow, inner end raised (the classic "sad eyes" look)
+    const bq = qOf(0.20, s * 0.15, -s * 0.24);
+    add(boxGen(0.66, 0.075, 0.56), YELLOW_D, { p: loc(0, 0.47, 0.04), q: bq, d: 1.4, w: true });
+  });
+
+  // ================= ARMS =================
+  [-1, 1].forEach(s => {
+    const S = [s * 1.07, 0.30, 0.34], E = [s * 1.52, 0.04, 0.70], W = [s * 1.06, -0.36, 1.20];
+    add(boxGen(0.20, 0.42, 0.50), TREAD_L, { p: [s * 1.10, 0.30, 0.34] });          // shoulder mount
+    add(sphereGen(0.15), TREAD, { p: S, d: 1.2 });
+    tube(S, E, 0.085, METAL);                                                          // upper arm
+    add(sphereGen(0.12), TREAD, { p: E, d: 1.4 });                                   // elbow
+    tube(E, W, 0.075, METAL);                                                          // forearm
+    add(boxGen(0.22, 0.16, 0.22), TREAD_L, { p: W });                                // wrist / palm
+    [[0.09, -0.21, 0.24], [-0.02, -0.23, 0.27], [-0.14, -0.05, 0.23]].forEach((f, i) => {   // claw: two fingers + thumb
+      const tip = [W[0] + s * f[0], W[1] + f[1], W[2] + f[2]];
+      tube([W[0] + s * f[0] * 0.2, W[1] - 0.06, W[2] + 0.08], tip, i === 2 ? 0.032 : 0.04, METAL_L, { d: 1.8 });
+    });
+  });
+
+  // ---- final scale + vertical recentre ----
+  all.forEach(p => { p.x *= SCALE; p.y = (p.y - CENTER_Y) * SCALE; p.z *= SCALE; });
 
   const COUNT = all.length;
 
@@ -1851,14 +2012,19 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+  // Round, opaque dots that occlude each other so Wall-E reads as a solid object
+  const dotCanvas = document.createElement('canvas');
+  dotCanvas.width = dotCanvas.height = 64;
+  const dctx = dotCanvas.getContext('2d');
+  dctx.beginPath(); dctx.arc(32, 32, 30, 0, Math.PI * 2); dctx.fillStyle = '#fff'; dctx.fill();
   const material = new THREE.PointsMaterial({
-    size: 0.045,
+    size: 0.054,
     vertexColors: true,
-    transparent: true,
-    opacity: 0.92,
-    depthWrite: false,
-    sizeAttenuation: true,
-    blending: THREE.AdditiveBlending
+    map: new THREE.CanvasTexture(dotCanvas),
+    alphaTest: 0.5,
+    transparent: false,
+    depthWrite: true,
+    sizeAttenuation: true
   });
 
   const points = new THREE.Points(geometry, material);
@@ -1938,7 +2104,7 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
-    material.size = w < 700 ? 0.06 : 0.048;
+    material.size = w < 700 ? 0.07 : 0.054;
     // Desktop: Wall-E far far right, team text far left. Mobile: center Wall-E.
     if (w < 800) {
       camera.position.set(0, 1.4, 9.5);
