@@ -31,10 +31,12 @@ from ai_engine import (
     analyze_omnichannel_feedback,
     answer_chat_query,
     get_ai_status,
+    get_insights,
     get_monitoring_alerts,
     get_section_tip,
     get_suggestions,
     get_timeline_events,
+    insights_meta,
     predict_future_performance,
     run_diagnosis,
 )
@@ -204,11 +206,23 @@ def ai_status(force: bool = False):
     return get_ai_status(force)
 
 
+@app.get("/api/ai-insights")
+def ai_insights():
+    """When the saved AI insights were created, and by which model (no AI request)."""
+    return insights_meta(get_insights(context))
+
+
+@app.post("/api/ai-insights/refresh")
+def refresh_ai_insights():
+    """The ONLY way the page asks for a new AI request: the "Refresh AI" button."""
+    return insights_meta(get_insights(context, force=True))
+
+
 @app.get("/api/diagnose")
 @app.get("/diagnose")
 def diagnose_campaign():
     try:
-        d = run_diagnosis(context())
+        d = run_diagnosis(context)
     except Exception as exc:
         log.error("Diagnose error: %s", exc)
         d = {}
@@ -236,7 +250,7 @@ def diagnose_campaign():
 @app.get("/forecast")
 def get_forecast():
     try:
-        return predict_future_performance(context())
+        return predict_future_performance(context)
     except Exception as exc:
         log.error("Forecast error: %s", exc)
         return {
@@ -260,7 +274,7 @@ def get_forecast():
 @app.get("/alerts")
 def get_alerts():
     try:
-        return get_monitoring_alerts(context())
+        return get_monitoring_alerts(context)
     except Exception as exc:
         log.error("Alerts error: %s", exc)
         return []
@@ -270,7 +284,7 @@ def get_alerts():
 @app.get("/timeline")
 def get_timeline():
     try:
-        return get_timeline_events(context())
+        return get_timeline_events(context)
     except Exception as exc:
         log.error("Timeline error: %s", exc)
         return []
@@ -329,9 +343,8 @@ def analyze_feedback(payload: Any = Body(default=None)):
 @app.get("/api/suggestions")
 @app.get("/suggestions")
 def suggestions(section: str = "actions"):
-    ctx = context()
     try:
-        res = get_suggestions(ctx)
+        res = get_suggestions(context)
         if isinstance(res, list):
             return {"suggestions": res}
         return res
@@ -364,7 +377,7 @@ def suggestions(section: str = "actions"):
 @app.get("/section-tip")
 def section_tip(section: str = "overview"):
     try:
-        return get_section_tip(section, context())
+        return get_section_tip(section, context)
     except Exception as exc:
         log.error("Section tip error: %s", exc)
         return {

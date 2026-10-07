@@ -119,8 +119,9 @@
 
     <!-- AI forecast -->
     <div class="card p-5">
-      <div class="flex items-start justify-between mb-4"><div><div class="text-base font-semibold text-white">✨ What the AI expects next</div><div class="text-sm text-mute" x-text="forecast?forecast.forecast_horizon:'Working out the forecast…'"></div></div>
-        <button class="text-sm text-verm hover:underline" @click="loadForecast()">Refresh</button></div>
+      <div class="flex items-start justify-between mb-4"><div><div class="text-base font-semibold text-white">✨ What the AI expects next</div><div class="text-sm text-mute" x-text="forecast?forecast.forecast_horizon:'Working out the forecast…'"></div>
+          <div class="text-xs mt-1" :class="aiMeta.source&&aiMeta.source!=='rules'?'text-emer':'text-amber-300'" x-show="aiMeta.generated_label" x-text="(aiMeta.source&&aiMeta.source!=='rules'?'AI insights made '+aiMeta.generated_label+' ('+(aiMeta.model||'AI')+')':'Worked out from your numbers at '+aiMeta.generated_label+(aiMeta.reason?' · '+aiMeta.reason:''))"></div></div>
+        <button class="btn border border-line text-white hover:border-mute shrink-0" :disabled="aiBusy" @click="refreshAi()" title="Makes one new AI request for all insights"><span x-show="aiBusy" class="spin"></span>Refresh AI</button></div>
       <div x-show="!forecast" class="space-y-2"><div class="sk h-14"></div><div class="sk h-8"></div></div>
       <div x-show="forecast" class="grid lg:grid-cols-3 gap-5">
         <p class="text-[15px] leading-relaxed text-gray-200 lg:col-span-2" x-text="forecast?.summary"></p>
@@ -562,7 +563,7 @@
 
 <!-- PAGE TIP POP-UP -->
 <div x-show="tip.show&&!chat.open&&!popup" x-transition.opacity class="fixed bottom-20 right-6 z-40 w-96 max-w-[calc(100vw-3rem)] rounded-xl bg-panel border-2 border-sky-500/60 p-4 shadow-2xl" role="status">
-  <div class="flex justify-between gap-3"><div class="text-xs font-bold uppercase tracking-wide text-sky-300">✨ AI tip for this page</div><button class="text-mute hover:text-white leading-none text-lg -mt-1" @click="tip.show=false" aria-label="Close tip">×</button></div>
+  <div class="flex justify-between gap-3"><div class="text-xs font-bold uppercase tracking-wide text-sky-300">✨ AI tip</div><button class="text-mute hover:text-white leading-none text-lg -mt-1" @click="tip.show=false" aria-label="Close tip">×</button></div>
   <div x-show="tip.loading" class="space-y-2 mt-2"><div class="sk h-4 w-2/3"></div><div class="sk h-10"></div></div>
   <div x-show="!tip.loading"><div class="font-semibold text-base text-white mt-1.5" x-text="tip.title"></div><p class="text-[15px] text-gray-200 mt-1 leading-relaxed" x-text="tip.text"></p>
     <button class="text-xs text-verm underline mt-2" @click="chat.open=true;tip.show=false">Ask the AI more</button></div>
@@ -654,7 +655,7 @@ function nexus(){
  return{
   P,nav:[{id:'overview',label:'Overview'},{id:'platforms',label:'Platform Analysis'},{id:'products',label:'Product Management'},{id:'inventory',label:'Inventory Management'},{id:'ads',label:'Advertisement'},{id:'ingestion',label:'Connected Platforms'},{id:'causal',label:'Problems to Watch'},{id:'poas',label:'Profit Check'},{id:'actions',label:'Things To Do'},{id:'timeline',label:'Time Log & Monthly'}],
   view:'overview',plat:'Meta',backend:(location.protocol.startsWith('http')&&location.port==='8000')?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
-  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},
+  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},aiMeta:{},aiBusy:false,
   diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:JSON.parse(JSON.stringify(MOCK.actions)),
   chat:{open:false,input:'',busy:false,msgs:[{me:false,t:"Hi! Ask me anything about your products, sales, profit, stock, ads or platforms."}]},
   kpis:[{l:'Profit on ad spend',v:'+38.2%',s:'better than last week',c:'text-emer'},{l:'Reply speed',v:'<450ms',s:'time to get an answer',c:'text-white'},{l:'Orders matched',v:'99.8%',s:'orders checked against real sales',c:'text-emer'},{l:'Safety checks on',v:'7',s:'2 stepped in today',c:'text-verm'}],
@@ -674,8 +675,8 @@ function nexus(){
    this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);setInterval(()=>this.syncOrders(),30000);
    this.pull('/api/actions',d=>{if(Array.isArray(d)&&d.length)this.actions=d},MOCK.actions);
    this.loadAiAlerts();this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT);
-   setTimeout(()=>this.showTip('overview'),1500);
-   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{redraw();this.showTip(v);if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
+   setTimeout(()=>this.showTipOnce(),1500);this.loadAiMeta();
+   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{redraw();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
    this.pull('/api/ads/platforms',d=>{if(d&&d.ad_platforms){this.adPlatforms=d.ad_platforms;this.salesChannels=d.sales_channels;if(d.formats)this.formats=d.formats;if(d.format_support)this.formatSupport=d.format_support}},{ad_platforms:AD_PLATFORMS,sales_channels:[...AD_PLATFORMS,'Website']});this.$watch('plat',redraw);
   },
   saveUrl(){this.backend=this.backend.trim().replace(/\/+$/,'');try{localStorage.setItem('nexus_backend',this.backend)}catch(e){}},
@@ -885,6 +886,19 @@ function nexus(){
      :'The server is not reachable, so this is sample data. Start it with: uvicorn main:app --port 8000'}
    this.drawMonthly()},
   drawMonthly(){this.mon.svg=monthSvg(this.mon.rows)},
+  /* the AI tip is shown once for each new set of AI insights, never on every page */
+  async showTipOnce(){try{const d=await this.api('/api/section-tip?section=overview');const id=String(d.generated_at||'');
+    let seen='';try{seen=localStorage.getItem('nexus_tip_seen')||''}catch(e){}
+    if(id&&seen===id)return;
+    try{localStorage.setItem('nexus_tip_seen',id)}catch(e){}
+    clearTimeout(this._tt);this.tip={show:true,loading:false,title:d.title,text:d.tip};this._tt=setTimeout(()=>this.tip.show=false,25000)}catch(e){}},
+  async loadAiMeta(){try{this.aiMeta=await this.api('/api/ai-insights')}catch(e){}},
+  async refreshAi(){if(this.aiBusy)return;this.aiBusy=true;
+   try{const m=await this.api('/api/ai-insights/refresh',{method:'POST'});this.aiMeta=m;
+    await Promise.all([this.loadForecast(),this.loadAiAlerts(),this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT)]);
+    this.diag.data=null;this.showTipOnce();this.checkAi(false);
+    this.toast(m.source&&m.source!=='rules'?'AI insights updated with one AI request':'AI not available: '+(m.reason||'using your numbers'),!!(m.source&&m.source!=='rules'))}
+   catch(e){this.toast(e.detail||('Could not refresh: '+e.message),false)}this.aiBusy=false},
   async showTip(s){clearTimeout(this._tt);this.tip={show:true,loading:true,title:'',text:''};let t=this.tipCache[s];
    if(!t){try{const d=await this.api('/api/section-tip?section='+s);t={title:d.title,text:d.tip};this.tipCache[s]=t}catch(e){t=TIPS[s]||TIPS.overview}}
    if(this.view!==s)return;this.tip={show:true,loading:false,...t};this._tt=setTimeout(()=>this.tip.show=false,25000)},
