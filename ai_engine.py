@@ -1,4 +1,4 @@
-"""NEXUS AI engine: Groq (Llama 3.3 70B) with strict JSON schemas and safe fallbacks.
+"""NEXUS AI engine: Together AI (Llama 3.1) via the official OpenAI SDK.
 
 Every public function returns usable data even if the API key is missing,
 the SDK is not installed, the model is throttled, or the reply is invalid.
@@ -17,17 +17,17 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 try:
-    from groq import Groq
+    from openai import OpenAI
 except ImportError:  # SDK missing: every function falls back to sample data
-    Groq = None
+    OpenAI = None
 
 # Load .env from the same folder as this file, so it works no matter where uvicorn is started from.
 load_dotenv(Path(__file__).with_name(".env"))
 load_dotenv()
 log = logging.getLogger("nexus.ai")
 
-# Using Groq's incredibly fast Llama 3.3 model
-PRIMARY_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+# Using Together AI's hyper-fast, stable Llama 3.1 8B model
+PRIMARY_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
 CACHE_TTL = int(os.getenv("AI_CACHE_SECONDS", "60"))
 _cache: dict[str, tuple[float, dict]] = {}
 _last_error: str = ""
@@ -37,7 +37,6 @@ SYSTEM = (
     "Use simple, plain English a shop owner understands. Currency is Indian rupees. "
     "Use only the data given; never invent numbers that cannot be worked out from it."
 )
-
 
 # ---------- Strict response schemas ----------
 class RecommendedAction(BaseModel):
@@ -108,36 +107,37 @@ class SuggestionList(BaseModel):
 
 # ---------- Helpers ----------
 def _api_key() -> str:
-    """Read the key and remove stray quotes or spaces that often sneak into .env files."""
-    raw = os.getenv("GROQ_API_KEY") or ""
+    raw = os.getenv("TOGETHER_API_KEY") or ""
     return raw.strip().strip('"').strip("'").strip()
 
 
 def _get_client():
-    if Groq is None:
+    if OpenAI is None:
         raise RuntimeError("SDK_MISSING")
     api_key = _api_key()
     if not api_key:
         raise ValueError("KEY_MISSING")
-    return Groq(api_key=api_key)
+    
+    # We use the OpenAI SDK, but route the URL to Together AI's servers
+    return OpenAI(
+        api_key=api_key, 
+        base_url="https://api.together.xyz/v1"
+    )
 
 
 def _explain(exc: Exception) -> str:
-    """Turn an SDK or network error into a plain-English reason the dashboard can show."""
     text = str(exc)
     low = text.lower()
-    if Groq is None or "SDK_MISSING" in text:
-        return "The groq package is not installed. Run: pip install groq"
+    if OpenAI is None or "SDK_MISSING" in text:
+        return "The openai package is not installed. Run: pip install openai"
     if "KEY_MISSING" in text:
-        return ("No GROQ_API_KEY found. Add GROQ_API_KEY to your environment variables.")
-    if "401" in text or "unauthorized" in low or "invalid api key" in low:
-        return "Groq rejected the API key. Copy a fresh key from console.groq.com."
+        return ("No TOGETHER_API_KEY found. Add it to your Railway variables.")
+    if "401" in text or "unauthorized" in low:
+        return "API key rejected. Ensure you pasted the Together AI key correctly."
     if "429" in text or "rate limit" in low:
-        return "Groq free-tier limit reached (too many requests). Wait a minute and try again."
-    if "404" in text or "not found" in low:
-        return f"Model '{PRIMARY_MODEL}' was not found. Check the model name."
+        return "Free limit reached. Wait a minute and try again."
     if any(w in low for w in ("connect", "timed out", "timeout", "network")):
-        return "The server could not reach Groq (no internet, firewall or proxy)."
+        return "Could not reach the AI server."
     return "AI error: " + text[:200]
 
 
@@ -151,7 +151,6 @@ _status_cache: dict[str, Any] = {"at": 0.0, "data": None}
 
 
 def get_ai_status(force: bool = False) -> dict[str, Any]:
-    """Make a tiny test call so the dashboard can show exactly why live AI is on or off."""
     global _last_error
     if not force and _status_cache["data"] and time.time() - _status_cache["at"] < 120:
         return _status_cache["data"]
@@ -162,11 +161,11 @@ def get_ai_status(force: bool = False) -> dict[str, Any]:
             model=PRIMARY_MODEL,
             max_tokens=10
         )
-        data = {"live": True, "model": PRIMARY_MODEL, "reason": f"Connected to {PRIMARY_MODEL} via Groq."}
+        data = {"live": True, "model": "Llama-3.1 (Together AI)", "reason": "Connected successfully."}
         _last_error = ""
     except Exception as exc:
         _last_error = _explain(exc)
-        data = {"live": False, "model": PRIMARY_MODEL, "reason": _last_error}
+        data = {"live": False, "model": "Llama-3.1", "reason": _last_error}
     _status_cache.update(at=time.time(), data=data)
     return data
 
@@ -176,7 +175,6 @@ def _stamp(minutes_ago: int = 0) -> str:
 
 
 def _generate(name: str, prompt: str, schema: type[BaseModel], temperature: float) -> dict | None:
-    """Call Groq, validate against the schema, cache for a short time. None on any failure."""
     key = name + hashlib.sha1(prompt.encode()).hexdigest()
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < CACHE_TTL:
@@ -185,7 +183,7 @@ def _generate(name: str, prompt: str, schema: type[BaseModel], temperature: floa
     try:
         client = _get_client()
         
-        # Enforce strict JSON output by injecting the schema directly into the prompt
+        # Enforce strict JSON output
         schema_json = json.dumps(schema.model_json_schema())
         full_prompt = prompt + f"\n\nYou MUST output strictly in JSON format matching this schema. Output nothing but the JSON object:\n{schema_json}"
         
@@ -226,7 +224,6 @@ def _fallback_diagnosis() -> dict:
         },
     }
 
-
 def _fallback_forecast() -> dict:
     return {
         "forecast_horizon": "Next 14 days",
@@ -243,14 +240,12 @@ def _fallback_forecast() -> dict:
         ],
     }
 
-
 def _fallback_alerts() -> list[dict]:
     return [
         {"id": "AL-1", "severity": "critical", "title": "Linen shirt almost out of stock", "message": "Only 4 days of stock left at the current sales speed. Ads on this product should be limited today.", "timestamp": _stamp(6)},
         {"id": "AL-2", "severity": "warning", "title": "Ad fatigue on Meta", "message": "“Summer Drop – UGC v3” is seen 4.8 times per person and clicks are down 31% this week.", "timestamp": _stamp(38)},
         {"id": "AL-3", "severity": "success", "title": "TikTok video is doing well", "message": "“Founder Story” earns ₹1.62 profit for every ₹1 spent. It can take more budget.", "timestamp": _stamp(95)},
     ]
-
 
 def _fallback_timeline() -> list[dict]:
     return [
@@ -259,7 +254,6 @@ def _fallback_timeline() -> list[dict]:
         {"time": _stamp(45), "title": "Tired ad detected", "desc": "Clicks on “Summer Drop – UGC v3” fell sharply. A fix was suggested.", "type": "warning"},
         {"time": _stamp(10), "title": "Low stock guard started", "desc": "Ads on the linen shirt were flagged to be limited until restock.", "type": "info"},
     ]
-
 
 def _fallback_feedback(reviews: list) -> dict:
     return {
@@ -271,7 +265,6 @@ def _fallback_feedback(reviews: list) -> dict:
             "Show fabric and fit close-ups first, since people praise these most.",
         ],
     }
-
 
 def _fallback_suggestions() -> list[dict]:
     return [
@@ -289,7 +282,6 @@ def _fallback_suggestions() -> list[dict]:
         }
     ]
 
-
 def _rs(n: Any) -> str:
     try:
         return "₹" + f"{round(float(n)):,}"
@@ -298,7 +290,6 @@ def _rs(n: Any) -> str:
 
 
 def _local_answer(question: str, ctx: dict) -> str:
-    """Backup answer when AI is off: reads the question and answers from the live data, never refuses."""
     q = (question or "").lower()
     has = lambda *w: any(x in q for x in w)
     prods = ctx.get("products", [])
@@ -361,40 +352,28 @@ def _local_answer(question: str, ctx: dict) -> str:
 
 # ---------- Public functions ----------
 def run_diagnosis(campaign_data: dict) -> dict[str, Any]:
-    prompt = (
-        "Find the main reason this campaign is underperforming and the best single fix. "
-        "Scores are 0 to 100.\n" + _json(campaign_data)
-    )
+    prompt = "Find the main reason this campaign is underperforming and the best single fix. Scores are 0 to 100.\n" + _json(campaign_data)
     data = _generate("diagnosis", prompt, DiagnosisResult, 0.2)
     if data:
-        data["source"] = "groq"
+        data["source"] = "together-ai"
         return data
     fb = _fallback_diagnosis()
     fb["source"] = "fallback"
     return fb
 
-
 def predict_future_performance(campaign_data: dict) -> dict[str, Any]:
-    prompt = (
-        "Forecast the next 14 days of performance (POAS = profit per rupee of ad spend) and suggest "
-        "exactly 3 practical tool integrations the brand should add. Use the product stock and daily "
-        "sales to predict stock-outs, and give one short restocking tip.\n" + _json(campaign_data)
-    )
+    prompt = "Forecast the next 14 days of performance (POAS = profit per rupee of ad spend) and suggest exactly 3 practical tool integrations the brand should add. Use the product stock and daily sales to predict stock-outs, and give one short restocking tip.\n" + _json(campaign_data)
     data = _generate("forecast", prompt, ForecastResult, 0.4)
     if data and len(data.get("integration_suggestions", [])) >= 1:
         data["integration_suggestions"] = data["integration_suggestions"][:3]
-        data["source"] = "groq"
+        data["source"] = "together-ai"
         return data
     fb = _fallback_forecast()
     fb["source"] = "fallback"
     return fb
 
-
 def get_monitoring_alerts(campaign_data: dict | None = None) -> list[dict[str, Any]]:
-    prompt = (
-        "Write exactly 3 realistic 24/7 monitoring alerts (for example low stock, ad fatigue, a win) "
-        "from this live data. Use ids AL-1, AL-2, AL-3.\n" + _json(campaign_data or {})
-    )
+    prompt = "Write exactly 3 realistic 24/7 monitoring alerts (for example low stock, ad fatigue, a win) from this live data. Use ids AL-1, AL-2, AL-3.\n" + _json(campaign_data or {})
     data = _generate("alerts", prompt, AlertList, 0.5)
     alerts = (data or {}).get("alerts", [])[:3]
     if not alerts:
@@ -404,12 +383,8 @@ def get_monitoring_alerts(campaign_data: dict | None = None) -> list[dict[str, A
             a["severity"] = "warning"
     return alerts
 
-
 def get_timeline_events(campaign_data: dict | None = None) -> list[dict[str, Any]]:
-    prompt = (
-        "Write exactly 4 timeline events, oldest first, showing recent system actions and data syncs "
-        "based on this data.\n" + _json(campaign_data or {})
-    )
+    prompt = "Write exactly 4 timeline events, oldest first, showing recent system actions and data syncs based on this data.\n" + _json(campaign_data or {})
     data = _generate("timeline", prompt, TimelineList, 0.5)
     events = (data or {}).get("events", [])[:4]
     if not events:
@@ -419,38 +394,28 @@ def get_timeline_events(campaign_data: dict | None = None) -> list[dict[str, Any
             e["type"] = "info"
     return events
 
-
 def analyze_omnichannel_feedback(feedback_list: list) -> dict[str, Any]:
     if not feedback_list:
         fb = _fallback_feedback([])
         fb["summary"] = "No reviews were given, so this is an example report."
         fb["source"] = "fallback"
         return fb
-    prompt = (
-        "Read these customer reviews. Give the share of positive, neutral and negative (adding to 1), "
-        "a short summary, the main topics, and advice for improving the ads.\n" + _json(feedback_list)
-    )
+    prompt = "Read these customer reviews. Give the share of positive, neutral and negative (adding to 1), a short summary, the main topics, and advice for improving the ads.\n" + _json(feedback_list)
     data = _generate("feedback", prompt, FeedbackReport, 0.2)
     if data:
-        data["source"] = "groq"
+        data["source"] = "together-ai"
         return data
     fb = _fallback_feedback(feedback_list)
     fb["source"] = "fallback"
     return fb
 
-
 def get_suggestions(campaign_data: dict) -> list[dict[str, Any]]:
-    """Generates actionable top-level suggestions based on live metrics."""
-    prompt = (
-        "Based on this data, provide exactly 2 to 3 actionable suggestions to improve performance. "
-        "Each must have a title, description, action_type, and confidence score (0-100).\n" + _json(campaign_data)
-    )
+    prompt = "Based on this data, provide exactly 2 to 3 actionable suggestions to improve performance. Each must have a title, description, action_type, and confidence score (0-100).\n" + _json(campaign_data)
     data = _generate("suggestions", prompt, SuggestionList, 0.4)
     suggestions = (data or {}).get("suggestions", [])
     if not suggestions:
         return _fallback_suggestions()
     return suggestions
-
 
 def answer_chat_query(question: str, context_data: dict, history: list | None = None) -> str:
     question = (question or "").strip()
@@ -458,17 +423,14 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
         return "Please type a question."
     
     messages = [{"role": "system", "content": SYSTEM}]
-    
     for h in (history or [])[-6:]:
         role = "user" if h.get("me") else "assistant"
         messages.append({"role": role, "content": str(h.get("t", ""))[:500]})
         
     prompt = (
         "You are the assistant inside this brand's dashboard. Answer the owner's question in 2 to 5 short, "
-        "friendly sentences using the data below (products with cost, price, units sold, profit, stock and "
-        "days of cover; ad campaigns; platforms). Work out totals, rankings and comparisons when asked. "
-        "For greetings, reply briefly and suggest 2 example questions. If the question has nothing to do with "
-        "this business, say politely in one sentence that you can only help with this dashboard's data."
+        "friendly sentences using the data below. Work out totals, rankings and comparisons when asked. "
+        "If the question has nothing to do with this business, say politely that you can only help with this dashboard."
         f"\n\nData:\n{_json(context_data)}"
         f"\n\nQuestion: {question}"
     )
@@ -486,7 +448,6 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
     except Exception as exc:
         _note_error("chat", exc)
         return _local_answer(question, context_data)
-
 
 # ---------- Page-aware tips ----------
 SECTION_FOCUS = {
@@ -515,15 +476,11 @@ _TIPS = {
     "ads": ("Move budget to what sells", "Check profit after ads on each platform. Pause ads where it is negative and stop ads on products almost out of stock."),
 }
 
-
 def get_section_tip(section: str, context_data: dict) -> dict[str, Any]:
     focus = SECTION_FOCUS.get(section, SECTION_FOCUS["overview"])
-    prompt = (
-        f"The owner just opened the '{section}' page. Give one useful, specific tip about {focus}. "
-        "Use the real numbers below.\n" + _json(context_data)
-    )
+    prompt = f"The owner just opened the '{section}' page. Give one useful, specific tip about {focus}. Use the real numbers below.\n" + _json(context_data)
     data = _generate("tip-" + section, prompt, SectionTip, 0.4)
     if data:
-        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "groq"}
+        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "together-ai"}
     title, tip = _TIPS.get(section, _TIPS["overview"])
     return {"section": section, "title": title, "tip": tip, "source": "fallback"}
