@@ -1,7 +1,6 @@
 """NEXUS AI engine: Groq (Llama 3.3 70B) with strict JSON schemas and safe fallbacks.
 
 Every public function returns usable data even if the API key is missing,
-the SDK is not installed, the model is throttled, or the reply is invalid.
 """
 
 import hashlib
