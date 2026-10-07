@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NEXUS // Autonomous D2C Advertising Intelligence & Decision Engine</title>
+<meta name="description" content="AI-native cross-channel advertising intelligence, causal diagnosis, and autonomous closed-loop execution for Direct-to-Consumer brands.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305070a'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23e0231c'/%3E%3Cpath d='M7 16h18M16 7v18' stroke='%23dfe7e0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================= TOKENS (KAGE MODEL) */
+:root {
+  --ink: #05070a;          /* page black */
+  --ink-2: #0a0e12;        /* raised black */
+  --bone: #dfe7e0;         /* pale sage white of wordmark */
+  --bone-dim: #aab4ad;
+  --muted: #78837c;
+  --line: rgba(223,231,224,.13);
+  --line-soft: rgba(223,231,224,.07);
+  --vermilion: #e0231c;    /* Kage signature flame red */
+  --ember: #ff5a3c;
+  --gold: #c9a24a;
+  --pad: clamp(20px, 3.4vw, 56px);
+  --nav-h: 84px;
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-io: cubic-bezier(.65,0,.35,1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: auto; }
+body {
+  margin: 0; background: var(--ink); color: var(--bone);
+  font-family: 'Onest', system-ui, -apple-system, sans-serif;
+  font-weight: 300; font-size: 16px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+::selection { background: var(--vermilion); color: #fff; }
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+/* ============================================================= LAYERS */
+#gl {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; z-index: 0; background: #05070a;
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 55; pointer-events: none;
+  background: radial-gradient(125% 95% at 50% 42%, transparent 40%, rgba(2,4,6,.58) 100%);
+}
+.page { position: relative; z-index: 10; }
+
+/* ============================================================= TYPOGRAPHY */
+.mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-size: 10px; font-weight: 500; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--bone-dim); text-shadow: 0 1px 16px rgba(3,6,8,.9);
+}
+.eyebrow .dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--vermilion); box-shadow: 0 0 10px var(--vermilion);
+  margin-right: 8px; vertical-align: middle;
+}
+.tag-jp { font-size: 11px; letter-spacing: .28em; color: var(--bone-dim); }
+h1, h2, h3 { font-weight: 400; margin: 0; letter-spacing: -.005em; }
+.display {
+  text-transform: uppercase; line-height: 1.055; letter-spacing: -.012em;
+  font-weight: 400; text-shadow: 0 2px 34px rgba(3,6,8,.72);
+}
+.h-hero { font-size: clamp(26px, 3.05vw, 46px); }
+.h-sec { font-size: clamp(30px, 4.0vw, 60px); }
+.body-lg { font-size: clamp(14px, 1.02vw, 17px); line-height: 1.72; color: #b4bfb7; font-weight: 300; text-shadow: 0 1px 20px rgba(3,6,8,.88); }
+.body { font-size: 14px; line-height: 1.68; color: #9aa5a0; font-weight: 300; text-shadow: 0 1px 18px rgba(3,6,8,.85); }
+.num { font-size: clamp(26px, 2.5vw, 36px); font-weight: 300; letter-spacing: -.02em; color: var(--bone); font-variant-numeric: tabular-nums; }
+
+/* ============================================================= PRELOADER (KAGE EXACT) */
+#pre {
+  position: fixed; inset: 0; z-index: 100; background: #05070a;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .8s var(--ease), visibility .8s;
+}
+#pre.done { opacity: 0; visibility: hidden; pointer-events: none; }
+.pre-in { width: min(420px, 74vw); text-align: center; }
+.pre-mark { margin: 0 auto 24px; width: 44px; height: 44px; opacity: .9; }
+.pre-mark svg { width: 100%; height: 100%; display: block; }
+.pre-code { font-size: 11px; letter-spacing: .4em; color: var(--bone-dim); margin-bottom: 20px; text-transform: uppercase; }
+.pre-bar { position: relative; height: 1px; background: rgba(223,231,224,.14); overflow: hidden; }
+.pre-bar i { position: absolute; inset: 0 100% 0 0; background: var(--bone); transition: right .35s linear; }
+.pre-meta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.pre-meta b { font-weight: 500; color: var(--bone-dim); font-variant-numeric: tabular-nums; }
+
+/* ============================================================= NAVIGATION */
+.nav {
+  position: fixed; top: 0; left: 0; width: 100%; height: var(--nav-h); z-index: 50;
+  display: flex; align-items: center; gap: 24px; padding: 0 var(--pad);
+  transition: transform .55s var(--ease);
+}
+.nav::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: rgba(5,7,10,.68);
+  backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  border-bottom: 1px solid var(--line-soft);
+}
+.brand { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; cursor: pointer; }
+.brand svg { width: 32px; height: 32px; display: block; }
+.brand-tx { display: flex; flex-direction: column; line-height: 1; gap: 3px; }
+.brand-tx b { font-size: 12px; font-weight: 500; letter-spacing: .26em; text-transform: uppercase; }
+.brand-tx i { font-style: normal; font-size: 8px; letter-spacing: .34em; color: var(--muted); text-transform: uppercase; }
+
+.nav-links { display: flex; gap: clamp(18px, 2.6vw, 44px); margin-left: auto; align-items: center; }
+.nav-link {
+  position: relative; font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--bone-dim); display: block; height: 16px; line-height: 16px; overflow: hidden;
+}
+.nav-link span { display: block; height: 16px; line-height: 16px; transition: transform .55s var(--ease-out), color .3s; }
+.nav-link .alt { position: absolute; inset: 0; transform: translate3d(0,100%,0); color: var(--bone); letter-spacing: .22em; }
+.nav-link:hover span { transform: translate3d(0,-100%,0); }
+.nav-link:hover .alt { transform: none; }
+
+/* Requested Login Button */
+.nav-login {
+  position: relative; display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 20px; border: 1px solid var(--line); border-radius: 100px;
+  font-size: 10px; font-weight: 500; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--bone); overflow: hidden; transition: border-color .45s, color .45s;
+}
+.nav-login i {
+  position: absolute; inset: 0; background: var(--bone);
+  transform: translate3d(0,101%,0); transition: transform .5s var(--ease-out); z-index: -1;
+}
+.nav-login:hover { color: #05070a; border-color: var(--bone); }
+.nav-login:hover i { transform: none; }
+
+.nav-burger { margin-left: 12px; width: 24px; height: 16px; position: relative; flex: 0 0 auto; cursor: pointer; display: none; }
+.nav-burger i { position: absolute; right: 0; height: 1.5px; background: var(--bone); transition: width .45s var(--ease-out); }
+.nav-burger i:nth-child(1) { top: 4px; width: 24px; }
+.nav-burger i:nth-child(2) { top: 11px; width: 16px; }
+
+/* ============================================================= HERO (KAGE LAYOUT) */
+.hero { position: relative; min-height: 100svh; padding: 0 var(--pad); display: flex; flex-direction: column; }
+.hero::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 46%; pointer-events: none;
+  background: linear-gradient(rgba(3,6,9,.76), rgba(3,6,9,.34) 46%, transparent);
+}
+.hero-top { padding-top: calc(var(--nav-h) + clamp(12px, 2.6vh, 34px)); max-width: min(580px, 48vw); position: relative; z-index: 2; }
+.hero-top .eyebrow { margin-bottom: 20px; }
+.hero h1 { margin-bottom: 18px; }
+.hero-sub { max-width: 360px; text-shadow: 0 1px 26px rgba(3,6,8,.95); }
+.hero-spacer { flex: 1 1 auto; min-height: clamp(140px, 24vh, 280px); }
+.hero-foot { padding-bottom: clamp(22px, 4.2vh, 42px); position: relative; z-index: 2; }
+.hero-cue {
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 14px;
+  font-size: 9px; letter-spacing: .3em; text-transform: uppercase; color: var(--muted);
+}
+.hero-cue .track { width: 54px; height: 1px; background: var(--line); position: relative; overflow: hidden; }
+.hero-cue .track i {
+  position: absolute; inset: 0; background: var(--bone); transform-origin: left;
+  animation: cue 2.8s var(--ease-io) infinite;
+}
+@keyframes cue { 0%{transform:scaleX(0)} 42%{transform:scaleX(1)} 100%{transform:scaleX(1) translateX(100%)} }
+
+/* The 4 Chapter Chips from Kage */
+.chapters {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(14px, 2.4vw, 40px);
+  border-top: 1px solid var(--line-soft); padding-top: 18px;
+}
+.chip { display: flex; gap: 14px; align-items: flex-start; cursor: pointer; }
+.chip .num { line-height: 1; flex: 0 0 auto; transition: color .4s, transform .5s var(--ease-out); }
+.chip .tx { min-width: 0; padding-top: 3px; }
+.chip b {
+  display: block; font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--bone-dim); margin-bottom: 6px; transition: color .4s;
+  text-shadow: 0 1px 16px rgba(3,6,8,.9);
+}
+.chip p { margin: 0; font-size: 11px; line-height: 1.5; color: #7d8781; max-width: 24ch; transition: color .4s; }
+.chip:hover .num { color: var(--ember); transform: translate3d(0,-2px,0); }
+.chip:hover b { color: var(--bone); }
+.chip:hover p { color: var(--bone-dim); }
+
+/* Floating Window (.peek from Kage) */
+.peek {
+  position: absolute; z-index: 2; right: clamp(78px, 11vw, 190px); top: clamp(132px, 24vh, 238px);
+  width: clamp(170px, 18vw, 280px); display: block;
+  transition: transform .8s var(--ease-out); cursor: pointer;
+}
+.peek-fr {
+  display: block; aspect-ratio: 16/10;
+  background: linear-gradient(135deg, rgba(8,14,20,0.9), rgba(5,7,10,0.95));
+  border: 1px solid rgba(223,231,224,.18);
+  box-shadow: 0 34px 70px -30px rgba(0,0,0,.9);
+  padding: 14px; position: relative; overflow: hidden;
+  transition: border-color .5s;
+}
+.peek:hover { transform: translate3d(0,-5px,0); }
+.peek:hover .peek-fr { border-color: var(--ember); }
+.peek-telemetry {
+  display: flex; flex-direction: column; justify-content: space-between; height: 100%;
+}
+.peek-row { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.peek-val { font-size: 13px; font-weight: 500; color: var(--bone); margin-top: 4px; }
+.peek-cap { display: flex; align-items: baseline; gap: 9px; margin-top: 9px; }
+.peek-cap b { font-size: 11px; font-weight: 400; letter-spacing: .24em; color: var(--bone-dim); text-transform: uppercase; }
+.peek-cap i { font-style: normal; font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+
+/* Vertical Side Label (.hero-side from Kage) */
+.hero-side {
+  position: absolute; z-index: 2; right: var(--pad); top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none;
+}
+.hero-side .v { writing-mode: vertical-rl; font-size: 11px; letter-spacing: .52em; text-transform: uppercase; color: rgba(223,231,224,.4); }
+
+/* ============================================================= SECTIONS (KAGE MODEL) */
+.sec { position: relative; padding: clamp(88px, 15vh, 180px) var(--pad); }
+.sec::before {
+  content: ''; position: absolute; inset: -22% -4%; z-index: -1; pointer-events: none;
+  background: radial-gradient(110% 62% at 30% 50%, rgba(4,7,10,.88), rgba(4,7,10,.62) 42%, rgba(4,7,10,.18) 74%, rgba(4,7,10,0));
+  -webkit-mask-image: linear-gradient(transparent, #000 44%);
+          mask-image: linear-gradient(transparent, #000 44%);
+}
+.sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: clamp(30px, 5vh, 66px); }
+.sec-head .k { font-size: 10px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.sec-head .k b { color: var(--vermilion); font-weight: 500; }
+.rule { flex: 1 1 auto; height: 1px; background: var(--line-soft); }
+
+/* — Chapter I: The Gate (Ingest & Reconcile) */
+.gate-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 90px); align-items: start; }
+.gate-grid h2 { max-width: 13ch; }
+.gate-copy { padding-top: 6px; }
+.gate-copy .lead { font-size: clamp(15px, 1.16vw, 19px); line-height: 1.66; color: #c2cdc5; text-shadow: 0 1px 20px rgba(3,6,8,.9); }
+.gate-copy .lead + p { margin-top: 20px; }
+
+.arrowlink {
+  display: inline-flex; align-items: center; gap: 12px; margin-top: 34px;
+  font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--bone);
+}
+.arrowlink .ar {
+  width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%;
+  display: grid; place-items: center; transition: background .45s var(--ease), border-color .45s, transform .5s var(--ease-out);
+}
+.arrowlink .ar svg { width: 13px; height: 13px; transition: transform .5s var(--ease-out); }
+.arrowlink:hover .ar { background: var(--bone); border-color: var(--bone); }
+.arrowlink:hover .ar svg { transform: translate3d(2px, -2px, 0); }
+.arrowlink:hover .ar svg path { stroke: #05070a; }
+
+.gate-stats {
+  display: flex; gap: clamp(24px, 4vw, 62px); margin-top: clamp(46px, 8vh, 96px);
+  border-top: 1px solid var(--line-soft); padding-top: 24px;
+}
+.gate-stats div b { display: block; font-size: clamp(22px, 2.1vw, 32px); font-weight: 300; letter-spacing: -.02em; }
+.gate-stats div span { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+
+/* — Chapter II: Pathways Cards (The 3 Staggered Frames with Glowing Lights) */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(12px, 1.6vw, 24px); align-items: start; }
+.card { position: relative; cursor: pointer; }
+.card:nth-child(1) { transform: translateY(0); }
+.card:nth-child(2) { transform: translateY(clamp(26px, 5vw, 74px)); }
+.card:nth-child(3) { transform: translateY(clamp(52px, 10vw, 148px)); }
+
+.card-fr {
+  position: relative; aspect-ratio: 4/5; background: rgba(9, 14, 20, 0.75);
+  border: 1px solid var(--line-soft);
+  transition: border-color .5s var(--ease); overflow: hidden; isolation: isolate;
+  padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
+}
+.card:hover .card-fr { border-color: rgba(223,231,224,.35); }
+.card-fr::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(transparent 40%, rgba(4,6,9,.85));
+}
+
+/* Glowing light circles from Kage */
+.glow {
+  position: absolute; z-index: 1; pointer-events: none;
+  left: var(--gx, 50%); top: var(--gy, 50%); width: calc(var(--gr, 80px) * 2); aspect-ratio: 1;
+  translate: -50% -50%; mix-blend-mode: screen;
+  animation: glow-swell 4.2s var(--ease-io) infinite alternate;
+}
+.glow::before {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--gc1, #ff5a3c), var(--gc2, rgba(224,35,28,.4)) 40%, transparent 72%);
+  animation: glow-pulse 3s var(--ease-io) infinite;
+}
+@keyframes glow-swell { from { transform: scale(.93); } to { transform: scale(1.07); } }
+@keyframes glow-pulse { from { opacity: .75; } 50% { opacity: 1; } to { opacity: .75; } }
+
+.card-top-tag { font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); position: relative; z-index: 2; }
+.card-lab { position: relative; z-index: 2; margin-top: auto; }
+.card-lab b { font-size: clamp(14px, 1.2vw, 18px); font-weight: 400; letter-spacing: .02em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.card-lab p { margin: 0; font-size: 12px; color: #9aa5a0; line-height: 1.5; }
+.card-ar {
+  position: absolute; top: 18px; right: 18px; z-index: 2; width: 26px; height: 26px;
+  opacity: 0; transform: translate3d(-4px, 4px, 0); transition: .5s var(--ease-out);
+}
+.card:hover .card-ar { opacity: 1; transform: none; }
+.card-meta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+
+/* — Chapter III: Curriculum / Decision Pipeline (.cur & .les from Kage) */
+.cur-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .75fr); gap: clamp(28px, 5vw, 90px); align-items: end; margin-bottom: clamp(34px, 6vh, 72px); }
+.cur-head h2 { max-width: 13ch; }
+.cur { border-top: 1px solid var(--line-soft); }
+.les {
+  position: relative; display: grid; align-items: center;
+  grid-template-columns: 64px minmax(0, 1.15fr) minmax(0, 1.25fr) 100px;
+  gap: clamp(14px, 2.4vw, 40px);
+  padding: clamp(20px, 2.4vw, 30px) 0; border-bottom: 1px solid var(--line-soft);
+  cursor: pointer; transition: padding .5s var(--ease-out);
+}
+.les::before {
+  content: ''; position: absolute; left: calc(var(--pad) * -1); right: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(224,35,28,.09), transparent 46%);
+  opacity: 0; transition: opacity .55s var(--ease); pointer-events: none;
+}
+.les:hover::before { opacity: 1; }
+.les:hover { padding-left: clamp(8px, 1.2vw, 18px); }
+.les .k { font-size: 11px; letter-spacing: .16em; color: var(--muted); font-variant-numeric: tabular-nums; transition: color .4s; }
+.les:hover .k { color: var(--vermilion); }
+.les h3 { font-size: clamp(16px, 1.5vw, 23px); font-weight: 400; letter-spacing: -.005em; }
+.les h3 em { font-style: normal; font-size: .74em; color: var(--muted); margin-left: 12px; letter-spacing: .16em; text-transform: uppercase; }
+.les p { margin: 0; font-size: 13px; line-height: 1.6; color: #909b95; text-shadow: 0 1px 16px rgba(3,6,8,.92); }
+.les .t { text-align: right; font-size: 11px; letter-spacing: .14em; color: #8b958f; text-transform: uppercase; text-shadow: 0 1px 16px rgba(3,6,8,.92); }
+.les .bar {
+  position: absolute; left: 0; bottom: -1px; height: 1px; width: 100%; background: var(--vermilion);
+  transform: scaleX(0); transform-origin: left; transition: transform .7s var(--ease-out);
+}
+.les:hover .bar { transform: scaleX(1); }
+
+/* — Chapter IV: Eternity / Closing (.fin & .cta from Kage) */
+.fin { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.fin .eyebrow { margin-bottom: 26px; }
+.fin h2 { font-size: clamp(38px, 7.4vw, 124px); line-height: .94; letter-spacing: -.03em; text-transform: uppercase; }
+.fin p { max-width: 44ch; margin: 26px auto 0; }
+.cta {
+  position: relative; display: inline-flex; align-items: center; gap: 14px; margin-top: 44px;
+  padding: 17px 32px; border: 1px solid var(--line); border-radius: 100px; overflow: hidden;
+  font-size: 11px; font-weight: 500; letter-spacing: .22em; text-transform: uppercase;
+  transition: color .45s var(--ease), border-color .45s;
+}
+.cta i {
+  position: absolute; inset: 0; background: var(--bone); transform: translate3d(0, 101%, 0);
+  transition: transform .62s var(--ease-out); z-index: -1;
+}
+.cta span, .cta svg { position: relative; z-index: 1; }
+.cta:hover { color: #05070a; border-color: var(--bone); }
+.cta:hover i { transform: none; }
+.cta:hover svg path { stroke: #05070a; }
+
+/* — Footer (.foot from Kage) */
+.foot {
+  position: relative; padding: clamp(50px, 8vh, 96px) var(--pad) clamp(26px, 4vh, 40px);
+  border-top: 1px solid var(--line-soft);
+}
+.foot::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(rgba(4,7,10,.55), rgba(4,7,10,.94) 40%, rgba(4,7,10,.98));
+}
+.foot-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, .6fr)); gap: clamp(22px, 4vw, 60px); }
+.foot h4 { margin: 0 0 16px; font-size: 10px; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+.foot ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.foot li a { font-size: 13px; color: #8f9a93; transition: color .35s; }
+.foot li a:hover { color: var(--bone); }
+.foot-brand p { margin: 16px 0 0; max-width: 34ch; font-size: 13px; color: #79847e; }
+.foot-base {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;
+  margin-top: clamp(38px, 6vh, 74px); padding-top: 20px; border-top: 1px solid var(--line-soft);
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
+
+/* Progress Rail on Right (.rail from Kage) */
+.rail {
+  position: fixed; right: calc(var(--pad) - 4px); top: 50%; transform: translateY(-50%); z-index: 45;
+  display: flex; flex-direction: column; gap: 12px; align-items: center;
+}
+.rail button { width: 22px; height: 10px; display: grid; place-items: center; }
+.rail i { display: block; width: 14px; height: 1px; background: rgba(223,231,224,.26); transition: .5s var(--ease-out); }
+.rail button.on i { width: 22px; background: var(--bone); }
+.rail button:hover i { width: 22px; background: var(--bone-dim); }
+
+/* Cursor Dot (.cur-dot from Kage) */
+.cur-dot {
+  position: fixed; z-index: 80; top: 0; left: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border: 1px solid rgba(223,231,224,.42); border-radius: 50%; pointer-events: none;
+  transition: width .35s var(--ease-out), height .35s var(--ease-out), margin .35s var(--ease-out), background .35s, border-color .35s, opacity .3s;
+  opacity: 0;
+}
+.cur-dot.act { width: 52px; height: 52px; margin: -26px 0 0 -26px; background: rgba(223,231,224,.07); border-color: rgba(223,231,224,.6); }
+@media (hover:hover) and (pointer:fine) { .cur-dot { opacity: 1; } }
+
+/* ============================================================= LOGIN MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 95;
+  background: rgba(3, 5, 8, 0.88); backdrop-filter: blur(16px);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.active { display: flex; animation: fadeIn .3s var(--ease); }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.login-modal {
+  width: min(420px, 94vw); background: #070c12; border: 1px solid var(--line);
+  border-radius: 12px; padding: clamp(28px, 4vw, 40px);
+  box-shadow: 0 30px 80px rgba(0,0,0,.9); position: relative;
+}
+.modal-close {
+  position: absolute; top: 16px; right: 16px; width: 30px; height: 30px;
+  border-radius: 50%; border: 1px solid var(--line-soft); display: grid; place-items: center;
+  color: var(--muted); transition: color .3s, border-color .3s;
+}
+.modal-close:hover { color: var(--bone); border-color: var(--bone); }
+.login-title { font-size: 20px; font-weight: 400; margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 26px; }
+
+.login-input {
+  width: 100%; padding: 13px 16px; margin-bottom: 14px;
+  background: rgba(10,16,24,0.85); border: 1px solid var(--line-soft);
+  border-radius: 6px; color: var(--bone); font-family: inherit; font-size: 13px;
+  outline: none; transition: border-color .3s;
+}
+.login-input:focus { border-color: var(--vermilion); }
+
+.login-btn {
+  width: 100%; padding: 14px; border-radius: 6px;
+  background: var(--bone); color: #05070a; font-size: 11px;
+  font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
+  margin-top: 6px; transition: background .3s;
+}
+.login-btn:hover { background: #fff; }
+
+.login-footer {
+  margin-top: 20px; text-align: center; font-size: 11px; color: var(--muted);
+  letter-spacing: .08em;
+}
+
+/* ============================================================= RESPONSIVE */
+@media (max-width: 1080px) {
+  .hero-top { max-width: none; }
+  .gate-grid { grid-template-columns: 1fr; gap: 26px; }
+  .cur-head { grid-template-columns: 1fr; gap: 18px; }
+  .les { grid-template-columns: 44px minmax(0, 1fr) 80px; }
+  .les p { display: none; }
+  .foot-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 820px) {
+  .nav-links { display: none; }
+  .nav-burger { display: block; }
+  .rail { display: none; }
+  .hero-side { display: none; }
+  .chapters { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
+  .cards { grid-template-columns: 1fr; gap: 20px; }
+  .card:nth-child(2), .card:nth-child(3) { transform: none; }
+  .peek { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- PRELOADER (KAGE MODEL) -->
+<div id="pre">
+  <div class="pre-in">
+    <div class="pre-mark">
+      <svg viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="14" stroke="var(--bone)" stroke-width="1.2" stroke-opacity=".28"/>
+        <circle cx="16" cy="16" r="6" fill="var(--vermilion)"/>
+      </svg>
+    </div>
+    <div class="pre-code mono">DATAQUEST 3.0 // NEXUS ENGINE</div>
+    <div class="pre-bar"><i id="pre-bar-fill"></i></div>
+    <div class="pre-meta">
+      <span>INITIALIZING VECTORS</span>
+      <b class="mono" id="pre-num">0%</b>
+    </div>
+  </div>
+</div>
+
+<!-- WEBGL / CANVAS BACKGROUND -->
+<canvas id="gl"></canvas>
+<div id="vignette"></div>
+
+<!-- CUSTOM CURSOR -->
+<div class="cur-dot" id="curDot"></div>
+
+<!-- PROGRESS RAIL -->
+<div class="rail" id="rail">
+  <button class="on" onclick="scrollToSec('hero')"><i></i></button>
+  <button onclick="scrollToSec('gate')"><i></i></button>
+  <button onclick="scrollToSec('pathways')"><i></i></button>
+  <button onclick="scrollToSec('lessons')"><i></i></button>
+  <button onclick="scrollToSec('eternity')"><i></i></button>
+</div>
+
+<div class="page">
+  <!-- NAVIGATION -->
+  <nav class="nav">
+    <div class="brand" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+      <svg viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" fill="#05070a"/>
+        <circle cx="16" cy="16" r="8" fill="var(--vermilion)"/>
+        <path d="M6 16h20M16 6v20" stroke="var(--bone)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div class="brand-tx">
+        <b>NEXUS // D2C</b>
+        <i>AUTONOMOUS ENGINE</i>
+      </div>
+    </div>
+
+    <div class="nav-links">
+      <a href="#gate" class="nav-link">
+        <span>01 Reconcile</span>
+        <span class="alt">01 Reconcile</span>
+      </a>
+      <a href="#pathways" class="nav-link">
+        <span>02 Surfaces</span>
+        <span class="alt">02 Surfaces</span>
+      </a>
+      <a href="#lessons" class="nav-link">
+        <span>03 Pipeline</span>
+        <span class="alt">03 Pipeline</span>
+      </a>
+      <a href="#eternity" class="nav-link">
+        <span>04 Execution</span>
+        <span class="alt">04 Execution</span>
+      </a>
+
+      <!-- Login Button -->
+      <button class="nav-login" onclick="openLoginModal()">
+        <i></i>
+        <span>Login</span>
+      </button>
+    </div>
+
+    <div class="nav-burger" onclick="openLoginModal()">
+      <i></i><i></i>
+    </div>
+  </nav>
+
+  <!-- HERO SECTION -->
+  <header class="hero" id="hero">
+    <div class="hero-top">
+      <div class="eyebrow">
+        <span class="dot"></span>
+        DataQuest 3.0 // AI Decision Engine
+      </div>
+      <h1 class="display h-hero">
+        Where Causal Reasoning Reveals The Unseen
+      </h1>
+      <p class="body-lg hero-sub">
+        Ingesting, diagnosing, and reconciling across ad networks, ERP inventory, and SKU margins in live WebGL real-time.
+      </p>
+    </div>
+
+    <!-- Floating Live Telemetry Window (.peek) -->
+    <div class="peek" onclick="openLoginModal()">
+      <div class="peek-fr">
+        <div class="peek-telemetry">
+          <div class="peek-row">
+            <span>STREAM 01</span>
+            <span class="mono" style="color:var(--vermilion);">LIVE</span>
+          </div>
+          <div>
+            <div class="peek-val mono">+38.2% POAS</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:2px;">Meta + Google Reallocated</div>
+          </div>
+          <div class="peek-row">
+            <span>STOCK GUARD</span>
+            <span class="mono">ACTIVE</span>
+          </div>
+        </div>
+      </div>
+      <div class="peek-cap">
+        <b>DECISION RADAR</b>
+        <i class="mono">0.45s</i>
+      </div>
+    </div>
+
+    <!-- Vertical Side Typography -->
+    <div class="hero-side">
+      <span class="v mono">AUTONOMOUS D2C // REASONING MATRIX</span>
+    </div>
+
+    <div class="hero-spacer"></div>
+
+    <!-- Hero Bottom Chapters (.chapters & .chip) -->
+    <div class="hero-foot">
+      <div class="hero-cue">
+        <span>Scroll to Explore</span>
+        <div class="track"><i></i></div>
+      </div>
+
+      <div class="chapters">
+        <div class="chip" onclick="scrollToSec('gate')">
+          <span class="num mono">01</span>
+          <div class="tx">
+            <b>Unified Ingestion</b>
+            <p>Meta, Google, Amazon, Shopify & ERP stock vectors.</p>
+          </div>
+        </div>
+        <div class="chip" onclick="scrollToSec('pathways')">
+          <span class="num mono">02</span>
+          <b>Causal Surfaces</b>
+          <p>Creative fatigue decay and inventory stockout guard.</p>
+        </div>
+        <div class="chip" onclick="scrollToSec('lessons')">
+          <span class="num mono">03</span>
+          <b>Decision Lifecycle</b>
+          <p>Bayesian anomaly detection & margin optimization.</p>
+        </div>
+        <div class="chip" onclick="scrollToSec('eternity')">
+          <span class="num mono">04</span>
+          <b>Closed Loop</b>
+          <p>Autonomous ad API execution & reinforcement learning.</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CHAPTER I: THE GATE (INGESTION & RECONCILIATION) -->
+  <section id="gate" class="sec">
+    <div class="sec-head">
+      <span class="k mono">Chapter I // <b>The Gate</b></span>
+      <div class="rule"></div>
+    </div>
+
+    <div class="gate-grid">
+      <h2 class="display h-sec">The Unified Cross-Platform Matrix</h2>
+      <div class="gate-copy">
+        <p class="lead">
+          D2C brands manage advertising in fragmented silos. Ad spend, sales revenue, product margins, and warehouse inventory levels reside in disconnected tools, leading to reactive guesswork and stockouts on promoted items.
+        </p>
+        <p class="body">
+          Nexus dissolves data barriers into high-dimensional schema vectors. By reconciling Google Analytics conversions, Shopify revenue, Amazon buy-box share, and ERP stock levels every 450ms, the system discovers true unit economics before ad dollars are committed.
+        </p>
+        
+        <a href="#pathways" class="arrowlink">
+          <span>Explore Platform Signals</span>
+          <span class="ar">
+            <svg viewBox="0 0 16 16" fill="none">
+              <path d="M4 12L12 4M12 4H6M12 4V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </a>
+      </div>
+    </div>
+
+    <div class="gate-stats">
+      <div>
+        <b class="num mono">&lt; 450ms</b>
+        <span>Inference Latency</span>
+      </div>
+      <div>
+        <b class="num mono">99.8%</b>
+        <span>Margin Reconciliation</span>
+      </div>
+      <div>
+        <b class="num mono">+38.2%</b>
+        <span>POAS Optimization</span>
+      </div>
+      <div>
+        <b class="num mono">100%</b>
+        <span>Closed-Loop Verification</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER II: STILL GARDENS (3 STAGGERED PLATFORM CARDS) -->
+  <section id="pathways" class="sec">
+    <div class="sec-head">
+      <span class="k mono">Chapter II // <b>Still Gardens</b></span>
+      <div class="rule"></div>
+    </div>
+
+    <div class="cards">
+      <!-- Card 1 -->
+      <div class="card" onclick="openLoginModal()">
+        <div class="card-fr">
+          <div class="glow" style="--gx:65%; --gy:32%; --gr:75px; --gc1:#ff5a3c; --gc2:rgba(224,35,28,.4);"></div>
+          <span class="card-top-tag mono">SIGNAL 01 // SOCIAL</span>
+          <div class="card-lab">
+            <b>Meta & TikTok Fatigue</b>
+            <p>Continuous creative decay modeling isolates CTR drops from audience saturation before budget is lost.</p>
+          </div>
+          <div class="card-ar">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="var(--bone)" stroke-width="1"/>
+              <path d="M9 15l6-6M15 9h-4M15 9v4" stroke="var(--bone)" stroke-width="1.2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span>Creative Health: 87%</span>
+          <span class="mono">DECAY GUARD</span>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="card" onclick="openLoginModal()">
+        <div class="card-fr">
+          <div class="glow" style="--gx:40%; --gy:60%; --gr:85px; --gc1:#c9a24a; --gc2:rgba(201,162,74,.3);"></div>
+          <span class="card-top-tag mono">SIGNAL 02 // SEARCH</span>
+          <div class="card-lab">
+            <b>Google & Amazon Stockout</b>
+            <p>Dynamic bid throttling triggers automatically when warehouse stock drops below safety thresholds.</p>
+          </div>
+          <div class="card-ar">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="var(--bone)" stroke-width="1"/>
+              <path d="M9 15l6-6M15 9h-4M15 9v4" stroke="var(--bone)" stroke-width="1.2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span>FBA Inventory: Safe</span>
+          <span class="mono">ERP BUFFER</span>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="card" onclick="openLoginModal()">
+        <div class="card-fr">
+          <div class="glow" style="--gx:50%; --gy:40%; --gr:90px; --gc1:#e0231c; --gc2:rgba(224,35,28,.5);"></div>
+          <span class="card-top-tag mono">SIGNAL 03 // UNIT MARGIN</span>
+          <div class="card-lab">
+            <b>POAS Profit Engine</b>
+            <p>Moves beyond vanity ROAS to calculate dynamic COGS, shipping tariffs, and contribution profit in real time.</p>
+          </div>
+          <div class="card-ar">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="var(--bone)" stroke-width="1"/>
+              <path d="M9 15l6-6M15 9h-4M15 9v4" stroke="var(--bone)" stroke-width="1.2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span>Contribution: +34%</span>
+          <span class="mono">MAX NET</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER III: SACRED CRAFT (5-STAGE PIPELINE) -->
+  <section id="lessons" class="sec">
+    <div class="sec-head">
+      <span class="k mono">Chapter III // <b>Sacred Craft</b></span>
+      <div class="rule"></div>
+    </div>
+
+    <div class="cur-head">
+      <h2 class="display h-sec">The Autonomous Decision Lifecycle</h2>
+      <p class="body-lg">
+        Five coordinated layers of causal inference that turn passive metrics into prioritized, executable directives.
+      </p>
+    </div>
+
+    <div class="cur">
+      <div class="les" onclick="openLoginModal()">
+        <span class="k mono">01</span>
+        <h3>Continuous Ingestion <em>Live Stream</em></h3>
+        <p>Real-time vector aggregation pulling ad spend, order velocity, and ERP inventory levels.</p>
+        <span class="t mono">&lt; 100ms</span>
+        <div class="bar"></div>
+      </div>
+
+      <div class="les" onclick="openLoginModal()">
+        <span class="k mono">02</span>
+        <h3>Anomaly Detection <em>Bayesian</em></h3>
+        <p>Statistical time-series models detect significant shifts in efficiency or CAC surges.</p>
+        <span class="t mono">Real-Time</span>
+        <div class="bar"></div>
+      </div>
+
+      <div class="les" onclick="openLoginModal()">
+        <span class="k mono">03</span>
+        <h3>Causal Root Cause Isolation <em>Inference</em></h3>
+        <p>AI agents isolate whether efficiency drops stem from creative fatigue, stockouts, or pricing shifts.</p>
+        <span class="t mono">Multi-Agent</span>
+        <div class="bar"></div>
+      </div>
+
+      <div class="les" onclick="openLoginModal()">
+        <span class="k mono">04</span>
+        <h3>Actionable Directives <em>Optimizer</em></h3>
+        <p>Formulation of prioritized budget reallocation directives ranked by expected Contribution Profit.</p>
+        <span class="t mono">POAS Solver</span>
+        <div class="bar"></div>
+      </div>
+
+      <div class="les" onclick="openLoginModal()">
+        <span class="k mono">05</span>
+        <h3>Closed-Loop Execution <em>Ad APIs</em></h3>
+        <p>Autonomous or 1-click execution via Meta and Google APIs, with continuous reinforcement learning.</p>
+        <span class="t mono">Closed-Loop</span>
+        <div class="bar"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAPTER IV: ETERNITY (CLOSING CTA) -->
+  <section id="eternity" class="fin">
+    <div class="eyebrow">
+      <span class="dot"></span> Chapter IV // Eternity
+    </div>
+    <h2 class="display">Where Stillness Reveals The Unseen</h2>
+    <p class="body-lg">
+      Stop guessing spend. Reconcile multi-channel signals, protect your margins, and empower autonomous agents to scale profitable growth.
+    </p>
+
+    <button class="cta" onclick="openLoginModal()">
+      <i></i>
+      <span>Enter Decision Engine</span>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M4 12L12 4M12 4H6M12 4V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <div class="brand">
+          <svg viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="10" fill="var(--vermilion)"/>
+            <path d="M6 16h20M16 6v20" stroke="var(--bone)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <div class="brand-tx">
+            <b>NEXUS // D2C</b>
+            <i>AUTONOMOUS ENGINE</i>
+          </div>
+        </div>
+        <p>
+          Next-Generation Autonomous Direct-to-Consumer Advertising Intelligence & Closed-Loop Decision Engine.
+        </p>
+      </div>
+
+      <div>
+        <h4>Intelligence</h4>
+        <ul>
+          <li><a href="#gate">Unified Vectors</a></li>
+          <li><a href="#pathways">Creative Fatigue</a></li>
+          <li><a href="#pathways">Stockout Guard</a></li>
+          <li><a href="#lessons">POAS Optimization</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Decisions</h4>
+        <ul>
+          <li><a href="#lessons">Anomaly Detection</a></li>
+          <li><a href="#lessons">Causal Inference</a></li>
+          <li><a href="#lessons">Action Directives</a></li>
+          <li><a href="#lessons">Outcome Feedback</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Integrations</h4>
+        <ul>
+          <li><a href="#gate">Meta Advertising API</a></li>
+          <li><a href="#gate">Google Performance Max</a></li>
+          <li><a href="#gate">Amazon SP & FBA</a></li>
+          <li><a href="#gate">Shopify & NetSuite ERP</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="foot-base">
+      <span>DataQuest 3.0 // Autonomous D2C Engine</span>
+      <span>Latency &lt; 450ms // Model Reinforced</span>
+      <span>© 2026 Nexus Intelligence. All rights reserved.</span>
+    </div>
+  </footer>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginModal">
+  <div class="login-modal">
+    <button class="modal-close" onclick="closeLoginModal()">✕</button>
+    <div class="eyebrow" style="margin-bottom:12px;">
+      <span class="dot"></span> Access Terminal
+    </div>
+    <div class="login-title">Sign In to Nexus</div>
+    <div class="login-sub">Enter your credentials to access the autonomous D2C decision engine.</div>
+
+    <form onsubmit="handleLogin(event)">
+      <input type="email" class="login-input" placeholder="Work email" required>
+      <input type="password" class="login-input" placeholder="Password" required>
+      <button type="submit" class="login-btn">Authenticate & Launch</button>
+    </form>
+
+    <div class="login-footer">
+      <span>SSO AVAILABLE FOR SHOPIFY PLUS & META PARTNERS</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= THREE.JS / WEBGL SIMULATION -->
+<script>
+// Preloader simulation
+(function() {
+  const pre = document.getElementById('pre');
+  const bar = document.getElementById('pre-bar-fill');
+  const num = document.getElementById('pre-num');
+  let p = 0;
+
+  const interval = setInterval(() => {
+    p += Math.floor(Math.random() * 18) + 12;
+    if (p >= 100) {
+      p = 100;
+      clearInterval(interval);
+      bar.style.right = '0%';
+      num.textContent = '100%';
+      setTimeout(() => {
+        pre.classList.add('done');
+      }, 400);
+    } else {
+      bar.style.right = `${100 - p}%`;
+      num.textContent = `${p}%`;
+    }
+  }, 80);
+})();
+
+// Ambient WebGL/Canvas Particle Shader Layer (Dark Kyoto Temple + Ad Graph Fusion)
+(function() {
+  const canvas = document.getElementById('gl');
+  const ctx = canvas.getContext('2d');
+  let width, height;
+  let particles = [];
+  const COUNT = 52;
+  const DIST = 160;
+
+  function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  class Node {
+    constructor() {
+      this.x = Math.random() * width;
+      this.y = Math.random() * height;
+      this.vx = (Math.random() - 0.5) * 0.35;
+      this.vy = (Math.random() - 0.5) * 0.35;
+      this.r = Math.random() * 2 + 1;
+      this.color = Math.random() > 0.8 ? 'rgba(224, 35, 28, 0.7)' : 'rgba(223, 231, 224, 0.4)';
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < 0 || this.x > width) this.vx *= -1;
+      if (this.y < 0 || this.y > height) this.vy *= -1;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    }
+  }
+
+  for (let i = 0; i < COUNT; i++) particles.push(new Node());
+
+  function loop() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Subtle dark gradient background
+    const bgGrad = ctx.createRadialGradient(width * 0.7, height * 0.2, 50, width * 0.5, height * 0.5, width * 0.9);
+    bgGrad.addColorStop(0, 'rgba(16, 22, 28, 0.4)');
+    bgGrad.addColorStop(1, 'rgba(5, 7, 10, 0.95)');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Dynamic Connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < DIST) {
+          const alpha = (1 - d / DIST) * 0.15;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(223, 231, 224, ${alpha})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+    }
+
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+// Cursor tracking
+(function() {
+  const dot = document.getElementById('curDot');
+  window.addEventListener('mousemove', (e) => {
+    dot.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+  });
+  document.querySelectorAll('a, button, .chip, .card, .les').forEach(el => {
+    el.addEventListener('mouseenter', () => dot.classList.add('act'));
+    el.addEventListener('mouseleave', () => dot.classList.remove('act'));
+  });
+})();
+
+// Progress rail updater
+function scrollToSec(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+window.addEventListener('scroll', () => {
+  const secs = ['hero', 'gate', 'pathways', 'lessons', 'eternity'];
+  const buttons = document.querySelectorAll('#rail button');
+  let currentIdx = 0;
+
+  secs.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.top <= window.innerHeight * 0.5) currentIdx = idx;
+    }
+  });
+
+  buttons.forEach((btn, idx) => {
+    if (idx === currentIdx) btn.classList.add('on');
+    else btn.classList.remove('on');
+  });
+});
+
+// Modal Logic
+function openLoginModal() {
+  document.getElementById('loginModal').classList.add('active');
+}
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.remove('active');
+}
+document.getElementById('loginModal').addEventListener('click', function(e) {
+  if (e.target === this) closeLoginModal();
+});
+
+function handleLogin(e) {
+  e.preventDefault();
+  alert('Authentication successful. Initializing Autonomous D2C Decision Workspace...');
+  closeLoginModal();
+}
+</script>
+</body>
+</html>
