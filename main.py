@@ -39,9 +39,9 @@ from ai_engine import (
     run_diagnosis,
 )
 
-try:  # error type raised by the Supabase client for database problems
+try:
     from postgrest.exceptions import APIError as PostgrestAPIError
-except Exception:  # pragma: no cover
+except Exception:
     PostgrestAPIError = None
 
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +50,6 @@ log = logging.getLogger("nexus.api")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """On start-up: create the sample data once (first run only). The app still starts if this fails."""
     try:
         if await run_in_threadpool(ads.ensure_seeded):
             log.info("Sample data created in Supabase.")
@@ -69,7 +68,6 @@ app.add_middleware(
 )
 
 
-# ---------- Database errors become a clear message ----------
 @app.exception_handler(db.DatabaseNotConfigured)
 async def _db_not_configured(_request: Request, exc: Exception):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
@@ -88,7 +86,6 @@ async def _config_error(_request: Request, exc: Exception):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
-# ---------- Fixed sample campaign figures used by AI features ----------
 CAMPAIGN_DATA: dict[str, Any] = {
     "brand": "Lumen & Co.",
     "currency": "INR",
@@ -109,7 +106,6 @@ PRODUCT_HIDDEN = ("base_rate", "website_rate", "added_sim", "created_at", "updat
 
 
 def _view(p: dict[str, Any], rate: float | None = None) -> dict[str, Any]:
-    """Add the worked-out stats the dashboard shows for each product."""
     rate = ads.selling_rate(p) if rate is None else rate
     cover = round(p["stock"] / rate) if rate > 0 else 999
     unit_profit = p["price"] - p["cost"]
@@ -134,7 +130,6 @@ def _views(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def context() -> dict[str, Any]:
-    """Live data given to AI; wrapped to ensure failures never crash requests."""
     try:
         products = ads.get_products()
     except Exception as exc:
@@ -176,7 +171,6 @@ def context() -> dict[str, Any]:
     }
 
 
-# ---------- Request models ----------
 class ExecuteActionRequest(BaseModel):
     action_id: str | None = None
     action: str | None = None
@@ -192,7 +186,6 @@ class ChatRequest(BaseModel):
 
 
 def _scale_pct(v: Any, default: float) -> float:
-    """Always return a 0-1 value to the UI."""
     try:
         v = float(v)
     except (TypeError, ValueError):
@@ -200,7 +193,6 @@ def _scale_pct(v: Any, default: float) -> float:
     return v / 100.0 if v > 1 else v
 
 
-# ---------- Core Endpoints ----------
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
@@ -334,26 +326,19 @@ def analyze_feedback(payload: Any = Body(default=None)):
     return {**report, "report": report}
 
 
-# ---------- Suggestions endpoint (Dual-Signature & Safe Fallback) ----------
 @app.get("/api/suggestions")
 @app.get("/suggestions")
 def suggestions(section: str = "actions"):
-    """Fetches AI suggestions without ever letting a signature or API error crash the route."""
     ctx = context()
     try:
-        # 1. Attempt calling with (section, ctx) if ai_engine expects 2 arguments
-        return get_suggestions(section, ctx)
-    except TypeError:
-        try:
-            # 2. Attempt calling with just (ctx) if ai_engine expects 1 argument
-            return get_suggestions(ctx)
-        except Exception as exc:
-            log.warning("get_suggestions failed: %s", exc)
+        res = get_suggestions(ctx)
+        if isinstance(res, list):
+            return {"suggestions": res}
+        return res
     except Exception as exc:
         log.warning("get_suggestions failed: %s", exc)
 
-    # 3. Safe fallback so frontend never reports server unreachable
-    return [
+    return {"suggestions": [
         {
             "title": "Stop 'Summer Drop - UGC v3' ad",
             "description": "Ad fatigue is causing low clicks. Moving budget to TikTok will save ₹45,000/day.",
@@ -366,7 +351,13 @@ def suggestions(section: str = "actions"):
             "action_type": "restock",
             "confidence": 88.5,
         },
-    ]
+        {
+            "title": "Scale TikTok Budget",
+            "description": "The 'Founder Story' campaign is highly profitable. Adding budget will drive volume.",
+            "action_type": "budget_increase",
+            "confidence": 84.0,
+        }
+    ]}
 
 
 @app.get("/api/section-tip")
@@ -384,7 +375,6 @@ def section_tip(section: str = "overview"):
         }
 
 
-# ---------- Product and inventory management ----------
 class ProductIn(BaseModel):
     name: str
     price: float
@@ -474,7 +464,6 @@ def restock(body: RestockIn):
     return {**_view(p), "message": f"Added {body.quantity} units to {p['name']}."}
 
 
-# ---------- Orders synced from connected platforms ----------
 @app.post("/api/orders/sync")
 def sync_orders():
     return ads.sync_orders()
@@ -485,7 +474,6 @@ def orders():
     return ads.orders_summary(ads.get_products())
 
 
-# ---------- Advertisement management ----------
 class AdStartIn(BaseModel):
     sku: str
     platform: str
@@ -572,7 +560,6 @@ def monthly_log(sku: str = "all", platform: str = "all", months: int = 6):
     return ads.monthly(ads.get_products(), sku, platform, max(1, min(months, 12)))
 
 
-# ---------- Posting ads to chosen platforms ----------
 class PostIn(BaseModel):
     sku: str
     platforms: list[str]
@@ -730,7 +717,6 @@ def list_posts(sku: str = "all"):
     return ads.posts_list(sku)
 
 
-# ---------- Connected platform accounts ----------
 class ConnectIn(BaseModel):
     platform: str
     account_name: str = ""
@@ -773,7 +759,6 @@ def disconnect_platform(platform: str):
     return {"message": f"{platform} disconnected and its saved keys deleted. Nothing syncs from it now."}
 
 
-# ---------- Dashboard root index ----------
 INDEX = Path(__file__).parent / "index.html"
 
 
