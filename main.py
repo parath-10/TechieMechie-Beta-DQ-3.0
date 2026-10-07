@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 import ads
+import auth
 import connectors
 import db
 from ai_engine import (
@@ -61,6 +62,37 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="NEXUS D2C Command Center", version="3.0.0", lifespan=lifespan)
+# ---------- Login gate: every page and API call needs a session, except the public ones ----------
+PUBLIC_PATHS = {"/", "/index.html", "/health", "/favicon.ico",
+                "/api/login", "/api/logout", "/api/auth/me", "/api/auth/config"}
+PAGES = {"/dashboard", "/dashboard.html"}
+
+
+def gate(path: str, method: str, cookie: str | None) -> tuple[int, dict | str] | None:
+    """None = let the request through. Otherwise (status, JSON body) or (303, address to send the browser to)."""
+    if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith("/media/"):
+        return None
+    user = auth.read_token(cookie)
+    if not user:
+        if path in PAGES:
+            return 303, "/?login=1"
+        return 401, {"detail": "Please log in again."}
+    if user["role"] == "demo" and method not in ("GET", "HEAD") and path not in auth.DEMO_ALLOWED_WRITES:
+        return 403, {"detail": "The demo account can look around but not change anything. Log in with the owner account to make changes."}
+    return None
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    blocked = gate(request.url.path, request.method, request.cookies.get(auth.COOKIE))
+    if blocked is None:
+        return await call_next(request)
+    status, body = blocked
+    if status == 303:
+        return RedirectResponse(body, status_code=303)
+    return JSONResponse(status_code=status, content=body)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -772,11 +804,76 @@ def disconnect_platform(platform: str):
     return {"message": f"{platform} disconnected and its saved keys deleted. Nothing syncs from it now."}
 
 
-INDEX = Path(__file__).parent / "index.html"
+# ---------- Login ----------
+class LoginIn(BaseModel):
+    email: str = ""
+    password: str = ""
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")  # Railway puts the visitor's address here
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+
+def _is_https(request: Request) -> bool:
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+
+
+@app.post("/api/login")
+def login(body: LoginIn, request: Request):
+    ip = _client_ip(request)
+    if auth.too_many_tries(ip):
+        raise HTTPException(status_code=429, detail="Too many wrong tries. Wait 10 minutes and try again.")
+    role = auth.check_login(body.email, body.password)
+    if not role:
+        auth.note_failure(ip)
+        raise HTTPException(status_code=401, detail="Those details don't match an account.")
+    auth.clear_failures(ip)
+    email = body.email.strip().lower()
+    resp = JSONResponse({"ok": True, "email": email, "role": role})
+    resp.set_cookie(auth.COOKIE, auth.make_token(email, role), max_age=int(auth.SESSION_DAYS * 86400),
+                    httponly=True, secure=_is_https(request), samesite="lax", path="/")
+    return resp
+
+
+@app.post("/api/logout")
+def logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.COOKIE, path="/")
+    return resp
+
+
+@app.get("/api/auth/me")
+def who_am_i(request: Request):
+    user = auth.read_token(request.cookies.get(auth.COOKIE))
+    if not user:
+        raise HTTPException(status_code=401, detail="Not logged in.")
+    return user
+
+
+@app.get("/api/auth/config")
+def auth_config():
+    """Tells the login page whether to show the demo account box."""
+    return {"demo": auth.demo_enabled(), "owner_configured": auth.owner_configured()}
+
+
+# ---------- Pages: landing + login at "/", dashboard at "/dashboard" (needs login) ----------
+HERE = Path(__file__).parent
+INDEX = HERE / "index.html"
+DASHBOARD = HERE / "dashboard.html"
 
 
 @app.get("/", include_in_schema=False)
+@app.get("/index.html", include_in_schema=False)
 def root():
     if INDEX.exists():
         return FileResponse(INDEX)
-    return JSONResponse({"status": "NEXUS API running. Put index.html next to main.py to serve the dashboard."})
+    return JSONResponse({"status": "NEXUS API running. Put index.html next to main.py to serve the site."})
+
+
+@app.get("/dashboard", include_in_schema=False)
+@app.get("/dashboard.html", include_in_schema=False)
+def dashboard_page():
+    if DASHBOARD.exists():
+        return FileResponse(DASHBOARD)
+    return JSONResponse({"status": "Put dashboard.html next to main.py."})
