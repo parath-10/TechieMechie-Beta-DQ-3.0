@@ -1,6 +1,7 @@
 """NEXUS AI engine: Groq (Llama 3.3 70B) with strict JSON schemas and safe fallbacks.
 
 Every public function returns usable data even if the API key is missing,
+the SDK is not installed, the model is throttled, or the reply is invalid.
 """
 
 import hashlib
@@ -95,6 +96,15 @@ class FeedbackReport(BaseModel):
     themes: list[str]
     creative_feedback: list[str]
 
+class SuggestionItem(BaseModel):
+    title: str = Field(description="Actionable title, e.g., 'Pause Meta Ad'")
+    description: str = Field(description="Why this should be done")
+    action_type: str = Field(description="'pause', 'budget_increase', 'restock'")
+    confidence: float = Field(description="0 to 100")
+
+class SuggestionList(BaseModel):
+    suggestions: list[SuggestionItem]
+
 
 # ---------- Helpers ----------
 def _api_key() -> str:
@@ -119,9 +129,9 @@ def _explain(exc: Exception) -> str:
     if Groq is None or "SDK_MISSING" in text:
         return "The groq package is not installed. Run: pip install groq"
     if "KEY_MISSING" in text:
-        return ("No GROQ_API_KEY found. Create a file named .env containing GROQ_API_KEY=your_key, then restart the server.")
+        return ("No GROQ_API_KEY found. Add GROQ_API_KEY to your environment variables.")
     if "401" in text or "unauthorized" in low or "invalid api key" in low:
-        return "Groq rejected the API key. Copy a fresh key from console.groq.com into .env."
+        return "Groq rejected the API key. Copy a fresh key from console.groq.com."
     if "429" in text or "rate limit" in low:
         return "Groq free-tier limit reached (too many requests). Wait a minute and try again."
     if "404" in text or "not found" in low:
@@ -211,7 +221,7 @@ def _fallback_diagnosis() -> dict:
         "recommended_action": {
             "action_type": "pause_and_reallocate",
             "title": "Stop the tired ad and move its budget",
-            "description": "Stop “Summer Drop – UGC v3”, move ₹45,000 a day to the “Founder Story” TikTok video, and limit ads on the linen shirt until new stock arrives.",
+            "description": "Stop “Summer Drop – UGC v3”, move ₹45,000 a day to the “Founder Story” TikTok video.",
             "target": "Meta: Summer Drop – UGC v3",
         },
     }
@@ -224,12 +234,12 @@ def _fallback_forecast() -> dict:
         "predicted_revenue_growth_pct": 12.5,
         "fatigue_risk_level": "high",
         "stockout_risk_days": 4,
-        "summary": "If nothing changes, profit per ₹1 of ads should improve slightly to about 1.28 as weak ads are stopped. The linen shirt will run out in about 4 days and ad tiredness on Meta will keep rising.",
+        "summary": "If nothing changes, profit per ₹1 of ads should improve slightly to about 1.28 as weak ads are stopped. The linen shirt will run out in about 4 days.",
         "inventory_advice": "Reorder about 240 Linen Shirts and 135 Overshirts now so you have 3 weeks of stock.",
         "integration_suggestions": [
-            "Connect Meta Conversions API (server-side tracking) to recover sales that iPhone privacy settings hide.",
+            "Connect Meta Conversions API (server-side tracking) to recover sales.",
             "Connect your warehouse stock count so ads pause automatically before a product sells out.",
-            "Connect your courier tracking to show real delivery times and cut complaints about late parcels.",
+            "Connect your courier tracking to show real delivery times.",
         ],
     }
 
@@ -254,14 +264,30 @@ def _fallback_timeline() -> list[dict]:
 def _fallback_feedback(reviews: list) -> dict:
     return {
         "sentiment": {"positive": 0.58, "neutral": 0.17, "negative": 0.25},
-        "summary": "Customers like the fabric and fit. Most complaints are about the colour looking different from the ad and slow delivery outside big cities.",
+        "summary": "Customers like the fabric and fit. Most complaints are about the colour looking different from the ad.",
         "themes": ["Fabric quality", "Colour in ad vs real", "Slow delivery", "Size runs small"],
         "creative_feedback": [
             "Re-shoot the main photo in daylight so the colour matches the product.",
             "Show fabric and fit close-ups first, since people praise these most.",
-            "Mention delivery time on pages for smaller cities.",
         ],
     }
+
+
+def _fallback_suggestions() -> list[dict]:
+    return [
+        {
+            "title": "Stop 'Summer Drop - UGC v3' ad",
+            "description": "Ad fatigue is causing low clicks. Moving budget to TikTok will save ₹45,000/day.",
+            "action_type": "pause",
+            "confidence": 92.0
+        },
+        {
+            "title": "Restock Linen Shirt",
+            "description": "Stock is critically low with only 4 days of cover. Pause ads to prevent out-of-stock penalties.",
+            "action_type": "restock",
+            "confidence": 88.5
+        }
+    ]
 
 
 def _rs(n: Any) -> str:
@@ -319,15 +345,7 @@ def _local_answer(question: str, ctx: dict) -> str:
                      f"{m.get('impressions', 0):,} views, {m.get('clicks', 0):,} clicks (down {abs(m.get('ctr_change_pct', 0))}%), "
                      f"{m.get('orders', 0):,} orders, profit per ₹1 of ads {m.get('poas', 0)}, seen {m.get('frequency', 0)} times per person.")
 
-    ad_rows = ctx.get("advertising", [])
-    if ad_rows and has("advert", "ads", "review", "rating", "views", "platform", "where"):
-        rows = [a for a in ad_rows if not named or a["product"] in {p["name"] for p in named}]
-        for a in sorted(rows, key=lambda x: -x.get("views", 0))[:6]:
-            lines.append(f"{a['product']} on {a['platform']} ({a['status']}): {a.get('views', 0):,} views, {a.get('orders', 0):,} orders, "
-                         f"profit after ads {_rs(a.get('profit_after_ads', 0))}"
-                         + (f", rated {a.get('avg_rating')} from {a.get('review_count')} reviews" if a.get("avg_rating") else ""))
-
-    if not lines:  # greeting or general question: give a short business overview instead of refusing
+    if not lines:  
         if prods:
             best = max(prods, key=lambda x: x.get("units_sold", 0))
             rich = max(prods, key=lambda x: x.get("total_profit", 0))
@@ -421,6 +439,19 @@ def analyze_omnichannel_feedback(feedback_list: list) -> dict[str, Any]:
     return fb
 
 
+def get_suggestions(campaign_data: dict) -> list[dict[str, Any]]:
+    """Generates actionable top-level suggestions based on live metrics."""
+    prompt = (
+        "Based on this data, provide exactly 2 to 3 actionable suggestions to improve performance. "
+        "Each must have a title, description, action_type, and confidence score (0-100).\n" + _json(campaign_data)
+    )
+    data = _generate("suggestions", prompt, SuggestionList, 0.4)
+    suggestions = (data or {}).get("suggestions", [])
+    if not suggestions:
+        return _fallback_suggestions()
+    return suggestions
+
+
 def answer_chat_query(question: str, context_data: dict, history: list | None = None) -> str:
     question = (question or "").strip()
     if not question:
@@ -437,8 +468,7 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
         "friendly sentences using the data below (products with cost, price, units sold, profit, stock and "
         "days of cover; ad campaigns; platforms). Work out totals, rankings and comparisons when asked. "
         "For greetings, reply briefly and suggest 2 example questions. If the question has nothing to do with "
-        "this business (for example homework or general trivia), say politely in one sentence that you can "
-        "only help with this dashboard's data, and suggest a relevant question."
+        "this business, say politely in one sentence that you can only help with this dashboard's data."
         f"\n\nData:\n{_json(context_data)}"
         f"\n\nQuestion: {question}"
     )
@@ -458,7 +488,7 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
         return _local_answer(question, context_data)
 
 
-# ---------- Page-aware tips (pop-up that changes with the sidebar section) ----------
+# ---------- Page-aware tips ----------
 SECTION_FOCUS = {
     "overview": "the overall health of the business: profit on ads, the biggest problem, and the one thing to do today",
     "platforms": "which platform (Meta, TikTok, Shopify, Amazon) performs best and worst, and what to change on the weakest",
