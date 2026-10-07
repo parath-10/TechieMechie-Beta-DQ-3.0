@@ -373,11 +373,15 @@ def predict_future_performance(campaign_data: dict) -> dict[str, Any]:
     return fb
 
 def get_monitoring_alerts(campaign_data: dict | None = None) -> list[dict[str, Any]]:
-    prompt = "Write exactly 3 realistic 24/7 monitoring alerts (for example low stock, ad fatigue, a win) from this live data. Use ids AL-1, AL-2, AL-3.\n" + _json(campaign_data or {})
+    # Changed prompt to strictly ask for 1 alert to reduce frontend pop-up spam
+    prompt = "Write exactly 1 high-priority monitoring alert (e.g., low stock or ad fatigue) from this live data. Do not write more than 1. Use id AL-1.\n" + _json(campaign_data or {})
     data = _generate("alerts", prompt, AlertList, 0.5)
-    alerts = (data or {}).get("alerts", [])[:3]
+    
+    # Hard-limit the slice to 1 item
+    alerts = (data or {}).get("alerts", [])[:1]
     if not alerts:
-        return _fallback_alerts()
+        return _fallback_alerts()[:1]
+        
     for a in alerts:
         if a["severity"] not in ("critical", "warning", "success"):
             a["severity"] = "warning"
@@ -410,8 +414,10 @@ def analyze_omnichannel_feedback(feedback_list: list) -> dict[str, Any]:
     return fb
 
 def get_suggestions(campaign_data: dict) -> list[dict[str, Any]]:
-    prompt = "Based on this data, provide exactly 2 to 3 actionable suggestions to improve performance. Each must have a title, description, action_type, and confidence score (0-100).\n" + _json(campaign_data)
+    # Added strict enforcement so the AI stops returning empty arrays
+    prompt = "Based on this data, you MUST provide exactly 3 actionable suggestions to improve performance. Never return an empty list. Each must have a title, description, action_type, and confidence score (0-100).\n" + _json(campaign_data)
     data = _generate("suggestions", prompt, SuggestionList, 0.4)
+    
     suggestions = (data or {}).get("suggestions", [])
     if not suggestions:
         return _fallback_suggestions()
