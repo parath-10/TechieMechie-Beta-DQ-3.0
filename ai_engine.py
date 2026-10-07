@@ -27,7 +27,7 @@ load_dotenv()
 log = logging.getLogger("nexus.ai")
 
 # Using OpenRouter's permanently free, massive Llama 3.3 70B model (zero credits used)
-PRIMARY_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+PRIMARY_MODEL = "google/gemini-1.5-flash:free"
 CACHE_TTL = int(os.getenv("AI_CACHE_SECONDS", "60"))
 _cache: dict[str, tuple[float, dict]] = {}
 _last_error: str = ""
