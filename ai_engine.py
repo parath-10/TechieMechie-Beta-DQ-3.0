@@ -27,7 +27,7 @@ load_dotenv()
 log = logging.getLogger("nexus.ai")
 
 # Using Google's Gemini 1.5 Pro via their OpenAI-compatible endpoint
-PRIMARY_MODEL = "gemini-1.5-pro"
+PRIMARY_MODEL = "gemini-3.1-flash-lite"
 CACHE_TTL = int(os.getenv("AI_CACHE_SECONDS", "60"))
 _cache: dict[str, tuple[float, dict]] = {}
 _last_error: str = ""
