@@ -484,6 +484,7 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
 .rail button { width: 24px; height: 12px; display: grid; place-items: center; }
 .rail i { display: block; width: 12px; height: 1px; background: rgba(223,231,224,.28); transition: .5s var(--ease-out); }
 .rail button.on i { width: 22px; background: var(--bone); }
+.cur-dot { display: none !important; }
 .cur-dot { position: fixed; z-index: 80; top: 0; left: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 1px solid rgba(223,231,224,.4); border-radius: 50%; pointer-events: none; opacity: 0; transition: width .35s var(--ease-out), height .35s var(--ease-out), margin .35s var(--ease-out), background .35s; }
 .cur-dot.act { width: 50px; height: 50px; margin: -25px 0 0 -25px; background: rgba(223,231,224,.06); }
 @media (hover: hover) and (pointer: fine) { .cur-dot { opacity: 1; } }
@@ -980,7 +981,7 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
       </div>
 
       <div class="demo fade" id="demo" data-hero style="--d:300ms" aria-label="Animated example: Nexus detects a stockout and recommends pausing ads">
-        <div class="demo-head"><span>Cotton T-Shirt · Meta + Google</span><span class="demo-pill"><i></i>Live example</span></div>
+        <div class="demo-head"><span id="sHeroName">Your products</span><span class="demo-pill"><i></i>From your data</span></div>
         <div class="demo-body">
           <svg class="demo-chart" viewBox="0 0 400 186" aria-hidden="true">
             <line class="d-grid" x1="30" x2="390" y1="40" y2="40"/>
@@ -995,18 +996,18 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
             <path class="d-paused" id="dPaused" pathLength="1"/>
             <text class="d-paused-lab" id="dPausedLab" y="150">Spend paused</text>
             <path class="d-roas" id="dRoas" pathLength="1"/>
-            <text x="30" y="180">Jul 28</text><text x="390" y="180" text-anchor="end">Aug 26</text>
+            <text id="sFrom" x="30" y="180">Jul 28</text><text id="sTo" x="390" y="180" text-anchor="end">Aug 26</text>
           </svg>
           <div class="demo-legend"><span><i></i>Return on ad spend</span><span class="sp"><i></i>Ad spend</span></div>
           <div class="demo-cards">
             <div class="d-card d-alert">
-              <div class="d-title">Stockout detected</div>
-              <div class="d-text">Stock hit 0 but ₹6,000/day is still being spent.</div>
+              <div class="d-title" id="sAlertT">Stockout detected</div>
+              <div class="d-text" id="sAlertX">Checking your stock…</div>
             </div>
             <div class="d-card d-rec">
               <div>
-                <div class="d-title">Pause campaigns until restock</div>
-                <div class="d-text">Saves ~₹60,000</div>
+                <div class="d-title" id="sRecT">Pause campaigns until restock</div>
+                <div class="d-text" id="sRecX"></div>
               </div>
               <button class="d-btn" data-dash aria-label="Approve and open dashboard">
                 <span class="b-idle">Approve</span>
@@ -1055,10 +1056,10 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
       </div>
     </div>
     <div class="stats">
-      <div class="stat"><b class="mono" data-count="4">0</b><span data-rv="b">Ad platforms</span></div>
-      <div class="stat"><b class="mono" data-count="6">0</b><span data-rv="b">Products tracked</span></div>
-      <div class="stat"><b class="mono" data-count="90">0</b><span data-rv="b">Days analyzed</span></div>
-      <div class="stat loss"><b class="mono" data-count="2.5" data-dec="1" data-prefix="₹" data-suffix="L">₹0L</b><span data-rv="b">Hidden losses found</span></div>
+      <div class="stat"><b class="mono" data-count="4" id="sPlat">0</b><span data-rv="b" style="white-space:nowrap">Ad platforms</span></div>
+      <div class="stat"><b class="mono" data-count="6" id="sProd">0</b><span data-rv="b" style="white-space:nowrap">Products tracked</span></div>
+      <div class="stat"><b class="mono" data-count="90" id="sDays">0</b><span data-rv="b" style="white-space:nowrap">Days analysed</span></div>
+      <div class="stat loss"><b class="mono" data-count="2.5" data-dec="0" data-prefix="₹" data-suffix="k" id="sRisk">₹0k</b><span data-rv="b" style="white-space:nowrap">Ad spend at risk this week</span></div>
     </div>
   </section>
 
@@ -1072,25 +1073,25 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     <div class="cards">
       <article class="card fade-o">
         <div class="card-fr">
-          <span class="card-tag">Wireless Earbuds · TikTok</span>
+          <span class="card-tag" id="cFatTag">Wireless Earbuds · TikTok</span>
           <svg class="mc" viewBox="0 0 360 170" aria-hidden="true">
             <line class="mc-axis" x1="10" x2="350" y1="150" y2="150"/>
             <line class="mc-ref" x1="10" x2="350" y1="45" y2="45"/>
             <text x="10" y="34">Click rate</text>
             <path class="mc-area red" d="M10 45 L41 47 L72 44 L103 50 L134 56 L165 60 L196 67 L227 73 L258 80 L289 86 L320 92 L350 98 L350 150 L10 150 Z"/>
             <path class="mc-line bone" pathLength="1" d="M10 45 L41 47 L72 44 L103 50 L134 56 L165 60 L196 67 L227 73 L258 80 L289 86 L320 92 L350 98"/>
-            <text class="mc-lab t-red t-mono" x="350" y="122" text-anchor="end">−50%</text>
-            <text x="10" y="166">Day 1</text><text x="350" y="166" text-anchor="end">Day 30</text>
+            <text class="mc-lab t-red t-mono" id="cFatLab" x="350" y="122" text-anchor="end">−50%</text>
+            <text x="10" y="166">Day 1</text><text x="350" y="166" text-anchor="end" id="cFatEnd">Day 30</text>
           </svg>
           <h3 data-rv="b">Ad fatigue</h3>
           <p data-rv="b" style="--d:120ms">Spots when people stop clicking an ad because they've seen it too often, so you refresh it before budget is wasted.</p>
         </div>
-        <div class="card-cap">Click rate fell 50% in 30 days</div>
+        <div class="card-cap" id="cFatCap">Click rate fell 50% in 30 days</div>
       </article>
 
       <article class="card fade-o" style="--d:150ms">
         <div class="card-fr">
-          <span class="card-tag">Cotton T-Shirt · All platforms</span>
+          <span class="card-tag" id="cStkTag">Cotton T-Shirt · All platforms</span>
           <svg class="mc" viewBox="0 0 360 170" aria-hidden="true">
             <line class="mc-axis" x1="10" x2="350" y1="150" y2="150"/>
             <path class="mc-area bone" d="M10 40 L60 52 L110 66 L160 88 L200 118 L230 150 L10 150 Z"/>
@@ -1100,29 +1101,29 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
             <text x="14" y="32">Stock</text>
             <text class="t-red" x="350" y="64" text-anchor="end">Ad spend</text>
             <text class="mc-lab t-red" x="290" y="118" text-anchor="middle">Wasted</text>
-            <text x="10" y="166">Aug 1</text><text x="350" y="166" text-anchor="end">Aug 24</text>
+            <text x="10" y="166" id="cStkA">Aug 1</text><text x="350" y="166" text-anchor="end" id="cStkB">Aug 24</text>
           </svg>
           <h3 data-rv="b">Stockout guard</h3>
           <p data-rv="b" style="--d:120ms">Flags ads still running on products that are out of stock, and recommends pausing them until restock.</p>
         </div>
-        <div class="card-cap">Ads ran 10 days on an empty shelf</div>
+        <div class="card-cap" id="cStkCap">Ads ran 10 days on an empty shelf</div>
       </article>
 
       <article class="card fade-o" style="--d:300ms">
         <div class="card-fr">
-          <span class="card-tag">Phone Case · All platforms</span>
+          <span class="card-tag" id="cWkTag">Phone Case · All platforms</span>
           <svg class="mc" viewBox="0 0 360 190" aria-hidden="true">
             <line class="mc-axis" x1="20" x2="340" y1="110" y2="110"/>
             <text x="20" y="104">₹0</text>
             <rect class="mc-bar up" x="80" y="40" width="80" height="70" rx="3"/>
-            <rect class="mc-bar down" x="200" y="110" width="80" height="55" rx="3"/>
-            <text class="mc-lab l1 t-green" x="120" y="30" text-anchor="middle">ROAS 3.8x</text>
-            <text class="mc-lab l2 t-red" x="240" y="184" text-anchor="middle">Profit −₹2.5L</text>
+            <rect class="mc-bar down" id="cWkBar" x="200" y="110" width="80" height="55" rx="3"/>
+            <text class="mc-lab l1 t-green" id="cWkL1" x="120" y="30" text-anchor="middle">ROAS 3.8x</text>
+            <text class="mc-lab l2 t-red" id="cWkL2" x="240" y="184" text-anchor="middle">Profit −₹2.5L</text>
           </svg>
           <h3 data-rv="b">Profit, not just revenue</h3>
           <p data-rv="b" style="--d:120ms">Calculates real profit after product costs and ad spend, so a high ROAS can't hide a product that loses money.</p>
         </div>
-        <div class="card-cap">Looks like a winner. Loses money.</div>
+        <div class="card-cap" id="cWkCap">Looks like a winner. Loses money.</div>
       </article>
     </div>
   </section>
@@ -1133,37 +1134,37 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     <div class="cmp-wrap">
       <div class="intro">
         <h2 data-rv="h">Same product. Very different story.</h2>
-        <p class="lead" data-rv="b">Here's the Phone Case through a typical dashboard, and through Nexus.</p>
+        <p class="lead" data-rv="b">Here's one of your products through a typical dashboard, and through Nexus.</p>
       </div>
       <div class="cmp" id="cmp">
         <div class="cmp-panel cmp-old">
           <span class="cmp-tag">Typical dashboard</span>
           <div class="cmp-card">
-            <div class="cmp-row"><span class="cmp-prod">Phone Case</span><span class="badge good">Top performer</span></div>
-            <div class="cmp-big mono">3.8x</div>
-            <div class="cmp-sub">Return on ad spend, last 90 days</div>
+            <div class="cmp-row"><span class="cmp-prod kName2">Phone Case</span><span class="badge good">Top performer</span></div>
+            <div class="cmp-big mono" id="kOldBig">3.8x</div>
+            <div class="cmp-sub" id="kOldSub">Return on ad spend, last 90 days</div>
             <svg class="mc" viewBox="0 0 400 110" aria-hidden="true">
               <path class="mc-area green" d="M0 90 L40 84 L80 86 L120 72 L160 70 L200 58 L240 54 L280 44 L320 40 L360 30 L400 24 L400 110 L0 110 Z"/>
               <path class="mc-line green" pathLength="1" d="M0 90 L40 84 L80 86 L120 72 L160 70 L200 58 L240 54 L280 44 L320 40 L360 30 L400 24"/>
             </svg>
-            <p class="cmp-foot">Looks like your best product. Most tools would tell you to spend more on it.</p>
+            <p class="cmp-foot" id="kOldFoot">Looks like your best product. Most tools would tell you to spend more on it.</p>
             <span class="cmp-chip ghost">Suggested: scale up</span>
           </div>
         </div>
         <div class="cmp-panel cmp-new">
           <span class="cmp-tag">Nexus</span>
           <div class="cmp-card">
-            <div class="cmp-row"><span class="cmp-prod">Phone Case</span><span class="badge bad">Losing money</span></div>
-            <div class="cmp-big mono">−₹2.5L</div>
-            <div class="cmp-sub">Profit after product and ad costs, last 90 days</div>
+            <div class="cmp-row"><span class="cmp-prod kName2">Phone Case</span><span class="badge bad" id="kBadge">Losing money</span></div>
+            <div class="cmp-big mono" id="kNewBig">−₹2.5L</div>
+            <div class="cmp-sub" id="kNewSub">Profit after product and ad costs, last 90 days</div>
             <svg class="mc" viewBox="0 0 400 110" aria-hidden="true">
               <line class="mc-ref" x1="0" x2="400" y1="24" y2="24"/>
               <text x="0" y="16">₹0</text>
               <path class="mc-area red" d="M0 24 L40 32 L80 40 L120 48 L160 55 L200 63 L240 70 L280 78 L320 85 L360 93 L400 100 L400 24 Z"/>
               <path class="mc-line red" pathLength="1" d="M0 24 L40 32 L80 40 L120 48 L160 55 L200 63 L240 70 L280 78 L320 85 L360 93 L400 100"/>
             </svg>
-            <p class="cmp-foot">Every sale earns ₹69, but ads cost more than that per sale.</p>
-            <span class="cmp-chip">Recommended: reduce budget</span>
+            <p class="cmp-foot" id="kNewFoot">Every sale earns ₹69, but ads cost more than that per sale.</p>
+            <span class="cmp-chip" id="kChip">Recommended: reduce budget</span>
           </div>
         </div>
         <div class="cmp-handle" id="cmpHandle" role="slider" tabindex="0" aria-label="Compare typical dashboard with Nexus" aria-valuemin="0" aria-valuemax="100" aria-valuenow="92">
@@ -1541,7 +1542,7 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
   });
 
   /* ---------------------------------------------- CARD TILT + CURSOR */
-  if (finePointer && !reduce) {
+  if (false) { /* card tilt turned off */
     document.querySelectorAll('.card').forEach(card => {
       const fr = card.querySelector('.card-fr');
       card.addEventListener('mousemove', e => {
@@ -1638,8 +1639,8 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
     });
   }, { passive: true });
 
-  /* soft magnetic pull for primary buttons */
-  if (fine) {
+  /* magnetic pull turned off */
+  if (false) {
     document.querySelectorAll('.btn-primary').forEach(btn => {
       btn.addEventListener('pointermove', e => {
         const r = btn.getBoundingClientRect();
@@ -2126,6 +2127,54 @@ h2 { font-weight: 500; margin: 0; letter-spacing: -.03em; line-height: 1.04; fon
   document.body.appendChild(muteBtn);
 })();
 
+</script>
+
+<script>
+/* Real numbers from the app (public, totals only). If the server cannot be reached the page keeps its built-in text. */
+(function(){
+  const $=id=>document.getElementById(id), T=(id,t)=>{const e=$(id);if(e)e.textContent=t};
+  const inr=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+  function counter(id,val,pre,suf){const e=$(id);if(!e||val==null)return;e.dataset.count=val;e.dataset.dec=0;if(pre)e.dataset.prefix=pre;if(suf)e.dataset.suffix=suf;
+    setTimeout(()=>{e.textContent=(pre||'')+Math.round(val)+(suf||'')},1800)}
+  fetch('/api/public/summary').then(r=>r.ok?r.json():null).then(d=>{
+    if(!d)return;
+    counter('sPlat',d.platforms);counter('sProd',d.products);counter('sDays',d.days);
+    counter('sRisk',Math.round(d.at_risk_week/1000),'₹','k');
+    const h=d.hero;
+    if(h){
+      T('sHeroName',h.name+' · all your ad platforms');
+      T('sAlertT','Stockout coming');
+      T('sAlertX',h.name+' runs out on '+h.runout+', but '+inr(h.daily)+' a day of ads keeps running.');
+      T('sRecT','Reorder '+h.reorder+' units now');
+      T('sRecX','Protects about '+inr(h.protected_week)+' a week');
+      T('dMarkTx',h.runout);T('sFrom',h.runout_from);T('sTo',h.runout_to);
+      T('cStkTag',h.name+' · All platforms');T('cStkA',h.runout_from);T('cStkB',h.runout_to);
+      T('cStkCap','Only '+h.cover+' days of stock left while ads keep running');
+      document.querySelectorAll('.kName2').forEach(e=>e.textContent=h.name);
+      if(h.profit>=0&&h.roas){
+        T('kOldBig',h.roas+'x');T('kOldSub','Return on ad spend so far');
+        T('kOldFoot','Looks like a great product. Most tools would tell you to spend more on it.');
+        const o=document.querySelector('.cmp-old .cmp-chip');if(o)o.textContent='Suggested: scale up';
+        T('kBadge','Stock runs out soon');T('kNewBig',h.cover+' days');T('kNewSub','of stock left at '+h.rate+' sales a day');
+        T('kNewFoot','The ads keep paying for views you cannot fill after '+h.runout+'.');T('kChip','Recommended: reorder '+h.reorder+' units');
+      }else if(h.profit<0){
+        T('kNewBig','−'+inr(Math.abs(h.profit)));T('kOldBig',(h.roas||'-')+'x');
+      }
+    }
+    const f=d.fatigue;
+    if(f){const v=Math.abs(f.ctr_change_pct);T('cFatTag',f.campaign+' · Meta');T('cFatLab','−'+v+'%');T('cFatEnd','Day 7');T('cFatCap','Click rate fell '+v+'% in 7 days')}
+    const w=d.weakest,b=d.best;
+    if(w&&b){
+      T('cWkTag',w.product+' · '+w.platform);
+      T('cWkL1','Best ad: ₹'+b.ratio.toFixed(2)+' per ₹1');T('cWkL2','Weakest: ₹'+w.ratio.toFixed(2)+' per ₹1');
+      const bar=$('cWkBar');
+      if(w.ratio>=1&&bar){const hgt=Math.max(8,Math.round(70*w.ratio/b.ratio));bar.setAttribute('y',110-hgt);bar.setAttribute('height',hgt);bar.setAttribute('class','mc-bar up');
+        const l2=$('cWkL2');l2.setAttribute('y',110-hgt-10);l2.setAttribute('class','mc-lab l2 t-green')
+        T('cWkCap','Weakest ad still earns ₹'+w.ratio.toFixed(2)+' for every ₹1 spent')}
+      else T('cWkCap','Weakest ad loses money: ₹'+w.ratio.toFixed(2)+' back for every ₹1')
+    }
+  }).catch(()=>{});
+})();
 </script>
 </body>
 </html>

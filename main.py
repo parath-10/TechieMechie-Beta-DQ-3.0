@@ -64,7 +64,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="NEXUS D2C Command Center", version="3.0.0", lifespan=lifespan)
 # ---------- Login gate: every page and API call needs a session, except the public ones ----------
 PUBLIC_PATHS = {"/", "/index.html", "/health", "/favicon.ico",
-                "/api/login", "/api/logout", "/api/auth/me", "/api/auth/config"}
+                "/api/login", "/api/logout", "/api/auth/me", "/api/auth/config", "/api/public/summary"}
 PAGES = {"/dashboard", "/dashboard.html"}
 
 
@@ -230,6 +230,54 @@ def _scale_pct(v: Any, default: float) -> float:
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+@app.get("/api/public/summary")
+def public_summary():
+    """Totals and examples for the public landing page. No tokens, accounts or customer data. Turn off with PUBLIC_SUMMARY=0."""
+    import calendar, math
+    from datetime import date, timedelta
+    if os.getenv("PUBLIC_SUMMARY", "1") == "0":
+        raise HTTPException(status_code=404, detail="Not found")
+    today = date.today()
+    products = ads.get_products()
+    views = {v["sku"]: v for v in _views(products)}
+    ad_views = ads.ads_for_products(products)
+    rows, all_ads = [], []
+    for p in products:
+        v = views[p["sku"]]
+        mine = [a for a in ad_views.get(p["sku"], []) if a.get("status") != "stopped"]
+        spend = sum(a.get("spend", 0) or 0 for a in mine)
+        orders = sum(a.get("orders", 0) or 0 for a in mine)
+        daily = sum(a.get("daily_budget", 0) or 0 for a in mine if a.get("status") == "active")
+        profit = sum(a.get("profit_after_ads", 0) or 0 for a in mine)
+        rows.append({"name": p["name"], "cover": v["days_of_cover"], "daily": daily, "spend": spend, "profit": profit,
+                     "roas": round(orders * p["price"] / spend, 1) if spend else None,
+                     "reorder": max(0, math.ceil(v["daily_sales"] * 21 - p["stock"])), "stock": p["stock"],
+                     "rate": round(v["daily_sales"], 1)})
+        all_ads += [{"product": p["name"], "platform": a["platform"], "ratio": round((a.get("profit_after_ads", 0) + a["spend"]) / a["spend"], 2),
+                     "profit": a.get("profit_after_ads", 0)} for a in mine if (a.get("spend") or 0) > 0]
+    risky = [r for r in rows if r["daily"] > 0 and r["cover"] < 14]
+    hero = min(risky, key=lambda r: r["cover"]) if risky else None
+    try:
+        days = 0
+        for m in ads.monthly(products)["months"]:
+            y, mo = map(int, m["month"].split("-"))
+            days += today.day if (y, mo) == (today.year, today.month) else calendar.monthrange(y, mo)[1]
+    except Exception:
+        days = None
+    fat = CAMPAIGN_DATA["metrics_last_7_days"]
+    return {
+        "platforms": len(ads.AD_PLATFORMS), "products": len(products), "days": days,
+        "at_risk_week": sum(r["daily"] for r in risky) * 7,
+        "hero": hero and {**hero, "runout": (today + timedelta(days=hero["cover"])).strftime("%d %b"),
+                          "protected_week": hero["daily"] * 7,
+                          "runout_from": (today + timedelta(days=hero["cover"] - 14)).strftime("%d %b"),
+                          "runout_to": (today + timedelta(days=hero["cover"] + 14)).strftime("%d %b")},
+        "fatigue": {"campaign": CAMPAIGN_DATA["campaign"]["name"], "ctr_change_pct": fat["ctr_change_pct"]},
+        "weakest": min(all_ads, key=lambda a: a["ratio"]) if all_ads else None,
+        "best": max(all_ads, key=lambda a: a["ratio"]) if all_ads else None,
+    }
 
 
 @app.get("/api/ai-status")

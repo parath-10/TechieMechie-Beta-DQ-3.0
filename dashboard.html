@@ -40,6 +40,7 @@
   .bgl .white-balls::after{content:"";position:absolute;inset:-10%;background:radial-gradient(circle at 15% 25%,rgba(255,255,255,.9) 0 2px,transparent 3px),radial-gradient(circle at 34% 67%,rgba(255,255,255,.75) 0 1.5px,transparent 3px),radial-gradient(circle at 53% 35%,rgba(255,255,255,.85) 0 2px,transparent 3.5px),radial-gradient(circle at 71% 18%,rgba(255,255,255,.7) 0 1.5px,transparent 3px),radial-gradient(circle at 86% 61%,rgba(255,255,255,.85) 0 2px,transparent 3.5px);animation:whiteBallsTwinkle 4s ease-in-out infinite alternate}
   @keyframes whiteBallsTwinkle{0%{opacity:.25;transform:scale(.96)}50%{opacity:1}100%{opacity:.4;transform:scale(1.04)}}
 /* ===== cursor ===== */
+ .c-ring,.c-dot{display:none!important}
  .c-ring,.c-dot{position:fixed;top:0;left:0;pointer-events:none;z-index:200;border-radius:50%;opacity:0;transition:opacity .3s}
  .c-ring{width:34px;height:34px;margin:-17px 0 0 -17px;border:1px solid rgba(223,231,224,.45);transition:opacity .3s,width .35s var(--e),height .35s var(--e),margin .35s var(--e),background .35s,border-color .35s,border-radius .35s}
  .c-dot{width:6px;height:6px;margin:-3px 0 0 -3px;background:var(--ember);box-shadow:0 0 10px var(--ember)}
@@ -51,7 +52,6 @@
  @keyframes sparkf{to{opacity:0;transform:translate(var(--sx),var(--sy)) scale(.2)}}
  .ripple{position:fixed;top:0;left:0;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid var(--ember);pointer-events:none;z-index:199;animation:rip .7s var(--e) forwards}
  @keyframes rip{to{opacity:0;transform:scale(9)}}
- @media(prefers-reduced-motion:reduce){.c-ring,.c-dot{display:none}}
 
  /* ===== sidebar ===== */
  .side{background:rgba(8,11,14,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
@@ -179,7 +179,7 @@
  @keyframes twinkle{50%{transform:rotate(20deg) scale(1.15)}}
  @keyframes fabIn{from{opacity:0;transform:translateY(30px) scale(.8)}}
  main::-webkit-scrollbar{width:10px}main::-webkit-scrollbar-thumb{background:#1e262c;border-radius:10px;border:3px solid transparent;background-clip:content-box}
- @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.c-ring,.c-dot{display:none}}
+ @media(prefers-reduced-motion:reduce){*:not(.spin),*::before,*::after{animation-iteration-count:1!important}}
 
 
 /* ===== full dashboard theme ===== */
@@ -500,16 +500,20 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
   <!-- PLATFORM ANALYSIS -->
   <section x-show="view==='platforms'" class="space-y-4">
-    <div class="flex gap-2"><template x-for="n in Object.keys(P)" :key="n"><button class="px-4 py-1.5 text-sm rounded border" :class="plat===n?'border-verm text-white bg-raise':'border-line text-mute hover:text-white'" @click="plat=n" x-text="n==='Meta'?'Meta (Facebook & Instagram)':n"></button></template></div>
+    <div class="flex flex-wrap gap-2"><template x-for="n in Object.keys(P)" :key="n"><button class="px-3.5 py-1.5 text-sm rounded border" :class="plat===n?'border-verm text-white bg-raise':'border-line text-mute hover:text-white'" @click="plat=n" x-text="n"></button></template></div>
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
       <template x-for="s in stats(plat)" :key="s[0]"><div class="card p-4"><div class="text-sm text-mute" x-text="s[0]"></div><div class="text-xl font-semibold mt-1" x-text="s[1]"></div></div></template>
     </div>
     <div class="grid xl:grid-cols-3 gap-4">
-      <div class="card p-4 xl:col-span-2"><div class="font-medium mb-1" x-text="P[plat].viewsLabel+' per day'"></div><div class="text-xs text-mute mb-3">Last 14 days</div><div class="h-56"><canvas id="cPlat"></canvas></div></div>
+      <div class="card p-4 xl:col-span-2"><div class="font-medium mb-1">Views by product on <span x-text="plat"></span></div><div class="text-xs text-mute mb-3">Bar height is views. The number under each name is orders. Real numbers from your ads.</div><div x-html="platSvg(plat)" role="img" :aria-label="'Views by product on '+plat"></div></div>
       <div class="card p-4"><div class="font-medium mb-3">What to do on <span x-text="plat"></span></div><ol class="space-y-2.5 list-decimal list-inside"><template x-for="t in P[plat].todo"><li class="text-sm leading-relaxed" x-text="t"></li></template></ol></div>
     </div>
+    <div class="card" x-show="P[plat].rows.length"><div class="p-4 border-b border-line font-medium">Products advertised on <span x-text="plat"></span></div>
+      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Views</th><th>Clicks</th><th>Orders</th><th>Ad spend</th><th>Profit after ads</th><th>Stock lasts</th></tr></thead><tbody>
+        <template x-for="r in P[plat].rows" :key="r.sku"><tr><td x-text="r.name"></td><td x-text="fmt(r.views)"></td><td x-text="fmt(r.clicks)"></td><td x-text="fmt(r.orders)"></td><td x-text="rs(r.spend)"></td><td :class="r.profit<0?'text-verm':'text-emer'" x-text="rs(r.profit)"></td><td x-text="r.cover+' days'" :class="r.cover<7?'text-verm':''"></td></tr></template></tbody></table></div></div>
     <div class="card"><div class="p-4 border-b border-line font-medium">Customer reviews on <span x-text="plat"></span></div>
-      <template x-for="r in P[plat].reviews"><div class="px-4 py-3 border-b border-line flex gap-3 text-sm"><span class="shrink-0 w-16 text-xs pt-0.5" :class="r.s==='good'?'text-emer':r.s==='bad'?'text-verm':'text-mute'" x-text="r.s==='good'?'Happy':r.s==='bad'?'Unhappy':'Mixed'"></span><span x-text="r.t"></span></div></template></div>
+      <template x-for="r in P[plat].reviews"><div class="px-4 py-3 border-b border-line flex gap-3 text-sm"><span class="shrink-0 w-16 text-xs pt-0.5" :class="r.s==='good'?'text-emer':r.s==='bad'?'text-verm':'text-mute'" x-text="r.s==='good'?'Happy':r.s==='bad'?'Unhappy':'Mixed'"></span><span><span x-text="r.t"></span> <span class="text-xs text-mute" x-text="'· '+r.n"></span></span></div></template>
+      <div x-show="!P[plat].reviews.length" class="px-4 py-3 text-sm text-mute">No written reviews on this platform yet.</div></div>
   </section>
 
   <!-- PRODUCT MANAGEMENT -->
@@ -879,14 +883,13 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   </div>
 </aside>
 
-<!-- AI ALERT POP-UP: big and easy to notice -->
-<div x-show="popup" x-transition class="fixed top-16 left-1/2 -translate-x-1/2 z-[60] w-[560px] max-w-[calc(100vw-2rem)]" role="alert" aria-live="assertive">
-  <template x-if="popup"><div class="rounded-xl border-2 shadow-2xl p-5 bg-panel" :class="SEV[popup.sev].pop">
-    <div class="flex items-start gap-4"><div class="text-3xl leading-none" x-text="SEV[popup.sev].icon"></div>
-      <div class="flex-1 min-w-0"><div class="text-xs font-bold uppercase tracking-wide" :class="SEV[popup.sev].text" x-text="'AI alert · '+SEV[popup.sev].label"></div>
-        <div class="text-lg font-semibold text-white mt-1" x-text="popup.title"></div><div class="text-[15px] text-gray-200 mt-1.5 leading-relaxed" x-text="popup.msg"></div>
-        <div class="flex gap-2 mt-4"><button x-show="popup.go" class="btn btn-p" @click="openNote(popup)">Show me</button><button class="btn border border-line text-white" @click="dismissPopup()">Dismiss</button>
-          <span x-show="popupQueue.length" class="text-xs text-mute self-center ml-auto" x-text="popupQueue.length+' more'"></span></div></div></div>
+<!-- AI ALERT POP-UP: small card, urgent problems only -->
+<div x-show="popup" x-transition.opacity class="fixed top-16 right-4 z-[60] w-72 max-w-[calc(100vw-2rem)]" role="alert" aria-live="polite">
+  <template x-if="popup"><div class="rounded-lg border shadow-xl p-3 bg-panel" :class="SEV[popup.sev].pop">
+    <div class="flex items-start gap-2.5"><div class="text-lg leading-none" x-text="SEV[popup.sev].icon"></div>
+      <div class="flex-1 min-w-0"><div class="flex items-center justify-between gap-2"><div class="text-[10px] font-bold uppercase tracking-wide" :class="SEV[popup.sev].text" x-text="'AI alert · '+SEV[popup.sev].label"></div><button class="text-mute hover:text-white leading-none text-lg -mt-1" @click="dismissPopup()" aria-label="Close alert">×</button></div>
+        <div class="text-sm font-semibold text-white mt-0.5" x-text="popup.title"></div><div class="text-xs text-gray-300 mt-1 leading-snug line-clamp-3" x-text="popup.msg"></div>
+        <button x-show="popup.go" class="text-xs text-acc underline mt-1.5" @click="openNote(popup)">Show me</button></div></div>
   </div></template>
 </div>
 
@@ -894,10 +897,10 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 <div class="fixed bottom-24 left-1/2 -translate-x-1/2 space-y-2 z-[55] w-[460px] max-w-[calc(100vw-2rem)]"><template x-for="t in toasts" :key="t.id"><div class="card toast-in px-4 py-3 text-sm border-l-4 shadow-lg flex gap-2 text-white" :class="t.ok?'border-l-emer':'border-l-verm'"><span x-text="t.ok?'✓':'!'" :class="t.ok?'text-emer':'text-verm'" class="font-bold"></span><span x-text="t.msg"></span></div></template></div>
 
 <!-- PAGE TIP POP-UP -->
-<div x-show="tip.show&&!chat.open&&!popup" x-transition.opacity class="fixed bottom-20 right-6 z-40 w-96 max-w-[calc(100vw-3rem)] rounded-xl bg-panel border-2 border-sky-500/60 p-4 shadow-2xl" role="status">
+<div x-show="tip.show&&!chat.open&&!popup" x-transition.opacity class="fixed bottom-20 right-6 z-40 w-72 max-w-[calc(100vw-3rem)] rounded-lg bg-panel border border-sky-500/60 p-3 shadow-xl" role="status">
   <div class="flex justify-between gap-3"><div class="text-xs font-bold uppercase tracking-wide text-sky-300">✨ AI tip</div><button class="text-mute hover:text-white leading-none text-lg -mt-1" @click="tip.show=false" aria-label="Close tip">×</button></div>
   <div x-show="tip.loading" class="space-y-2 mt-2"><div class="sk h-4 w-2/3"></div><div class="sk h-10"></div></div>
-  <div x-show="!tip.loading"><div class="font-semibold text-base text-white mt-1.5" x-text="tip.title"></div><p class="text-[15px] text-gray-200 mt-1 leading-relaxed" x-text="tip.text"></p>
+  <div x-show="!tip.loading"><div class="font-semibold text-sm text-white mt-1" x-text="tip.title"></div><p class="text-xs text-gray-300 mt-1 leading-snug" x-text="tip.text"></p>
     <button class="text-xs text-acc underline mt-2" @click="chat.open=true;tip.show=false">Ask the AI more</button></div>
 </div>
 
@@ -933,28 +936,34 @@ const TIPS={ads:{title:'Move budget to what sells',text:'Compare profit after ad
 /* Month-wise chart drawn as plain SVG: bars = units sold, red line = views, dashed amber line = reviews */
 function monthSvg(rows){
  if(!rows||!rows.length)return '<p style="color:#8a948e;font-size:13px;padding:24px 0">No data for this choice yet.</p>';
- const W=760,H=290,L=56,R=64,T=40,B=36,pw=W-L-R,ph=H-T-B,n=rows.length,slot=pw/n,bw=Math.min(46,slot*0.5);
- const nice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p};
- const short=v=>v>=1e7?(v/1e7).toFixed(1)+'Cr':v>=1e5?(v/1e5).toFixed(1)+'L':v>=1e3?(v/1e3).toFixed(1)+'k':String(Math.round(v));
+ const W=760,H=320,L=52,R=56,T=50,B=48,pw=W-L-R,ph=H-T-B,n=rows.length,slot=pw/n,bw=Math.min(52,slot*0.52);
+ const nice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return (f<=1?1:f<=1.5?1.5:f<=2?2:f<=3?3:f<=5?5:f<=7.5?7.5:10)*p};
+ const short=v=>v>=1e7?(v/1e7).toFixed(1).replace('.0','')+'Cr':v>=1e5?(v/1e5).toFixed(1).replace('.0','')+'L':v>=1e3?(v/1e3).toFixed(1).replace('.0','')+'k':String(Math.round(v));
  const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
- const uMax=nice(Math.max(1,...rows.map(r=>r.units))*1.12),vMax=nice(Math.max(1,...rows.map(r=>r.views)));
+ const uMax=nice(Math.max(1,...rows.map(r=>r.units))*1.1),vMax=nice(Math.max(1,...rows.map(r=>r.views))*1.1);
  const x=i=>L+slot*i+slot/2,yU=v=>T+ph-v/uMax*ph,yV=v=>T+ph-v/vMax*ph;
- let g='';
- for(let k=0;k<=5;k++){const yy=T+ph-ph*k/5;
-  g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#161c20"/>`+
-     `<text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="#8a948e">${short(uMax*k/5)}</text>`+
-     `<text x="${W-R+8}" y="${yy+4}" font-size="11" fill="#d98a7f">${short(vMax*k/5)}</text>`}
- rows.forEach((r,i)=>{const h=Math.max(0,T+ph-yU(r.units));
-  g+=`<rect x="${x(i)-bw/2}" y="${yU(r.units)}" width="${bw}" height="${h}" rx="4" fill="#dfe7e0" fill-opacity=".82" class="mb" style="animation-delay:${i*70}ms"><title>${esc(r.label)}: ${Number(r.units).toLocaleString('en-IN')} units sold, ${Number(r.views).toLocaleString('en-IN')} views, ${r.reviews} reviews</title></rect>`+
-     `<text x="${x(i)}" y="${yU(r.units)-6}" text-anchor="middle" font-size="11" fill="#fbbf24">${r.reviews} rev${r.avg_rating?' · ★'+r.avg_rating:''}</text>`+
-     `<text x="${x(i)}" y="${H-B+18}" text-anchor="middle" font-size="12" fill="#8a948e">${esc(r.label)}${i===n-1?'*':''}</text>`});
- const path=f=>rows.map((r,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+f(r).toFixed(1)).join(' ');
- g+=`<path d="${path(r=>yV(r.views))}" fill="none" stroke="#e0231c" stroke-width="2.5" pathLength="1" class="ml"/>`;
-  rows.forEach((r,i)=>{g+=`<circle cx="${x(i)}" cy="${yV(r.views)}" r="3.5" fill="#ff5a3c" class="mdot" style="animation-delay:${600+i*90}ms"><title>${esc(r.label)}: ${Number(r.views).toLocaleString('en-IN')} views</title></circle>`});
- const leg=`<g font-size="12" fill="#dfe7e0"><rect x="${L}" y="8" width="12" height="12" rx="2" fill="#dfe7e0"/><text x="${L+18}" y="18">Units sold (left)</text>`+
-  `<line x1="${L+140}" x2="${L+160}" y1="14" y2="14" stroke="#e0231c" stroke-width="2.5"/><text x="${L+166}" y="18">Views (right)</text>`+
-  `<text x="${L+270}" y="18" fill="#fbbf24">rev = reviews that month</text><text x="${W-R}" y="18" text-anchor="end" fill="#8a948e">* this month so far</text></g>`;
- return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px;display:block" xmlns="http://www.w3.org/2000/svg" font-family="Onest,system-ui,sans-serif">${leg}${g}</svg>`}
+ let g='<defs><linearGradient id="mbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fb68b"/><stop offset="1" stop-color="#3fb68b" stop-opacity=".25"/></linearGradient><pattern id="mbp" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#3fb68b" fill-opacity=".18"/><rect width="3" height="6" fill="#3fb68b" fill-opacity=".5"/></pattern><linearGradient id="mla" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a3c" stop-opacity=".28"/><stop offset="1" stop-color="#ff5a3c" stop-opacity="0"/></linearGradient></defs>';
+ for(let k=0;k<=4;k++){const yy=T+ph-ph*k/4;
+  g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#8a948e" stroke-opacity="${k?0.16:0.4}" ${k?'stroke-dasharray="3 4"':''}/>`+
+     `<text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="#8a948e">${short(uMax*k/4)}</text>`+
+     `<text x="${W-R+8}" y="${yy+4}" font-size="11" fill="#ff8b72">${short(vMax*k/4)}</text>`}
+ rows.forEach((r,i)=>{const cur=i===n-1,h=Math.max(2,T+ph-yU(r.units));
+  g+=`<rect x="${x(i)-bw/2}" y="${T+ph-h}" width="${bw}" height="${h}" rx="6" fill="${cur?'url(#mbp)':'url(#mbg)'}" stroke="#3fb68b" stroke-opacity="${cur?.7:0}" class="mb" style="animation-delay:${i*70}ms"><title>${esc(r.label)}: ${Number(r.units).toLocaleString('en-IN')} units sold, ${Number(r.views).toLocaleString('en-IN')} views, ${r.reviews} reviews</title></rect>`+
+     `<text x="${x(i)}" y="${T+ph-h-8}" text-anchor="middle" font-size="12" font-weight="600" fill="#3fb68b">${short(r.units)}</text>`+
+     `<text x="${x(i)}" y="${H-B+19}" text-anchor="middle" font-size="12" fill="#c9d2cc">${esc(r.label)}${cur?' *':''}</text>`+
+     `<text x="${x(i)}" y="${H-B+34}" text-anchor="middle" font-size="10.5" fill="#8a948e">${r.reviews} reviews${r.avg_rating?' · ★'+r.avg_rating:''}</text>`});
+ const pts=rows.map((r,i)=>[x(i),yV(r.views)]);
+ let d=`M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+ if(pts.length>1){const m=[];for(let i=0;i<pts.length-1;i++)m.push((pts[i+1][1]-pts[i][1])/(pts[i+1][0]-pts[i][0]));
+  const t=[m[0]];for(let i=1;i<pts.length-1;i++)t.push(m[i-1]*m[i]<=0?0:(m[i-1]+m[i])/2);t.push(m[m.length-1]);
+  for(let i=0;i<pts.length-1;i++){const dx=(pts[i+1][0]-pts[i][0])/3;d+=` C${(pts[i][0]+dx).toFixed(1)} ${(pts[i][1]+t[i]*dx).toFixed(1)} ${(pts[i+1][0]-dx).toFixed(1)} ${(pts[i+1][1]-t[i+1]*dx).toFixed(1)} ${pts[i+1][0].toFixed(1)} ${pts[i+1][1].toFixed(1)}`}}
+ g+=`<path d="${d} L${pts[pts.length-1][0].toFixed(1)} ${T+ph} L${pts[0][0].toFixed(1)} ${T+ph} Z" fill="url(#mla)" opacity=".9"/>`;
+ g+=`<path d="${d}" fill="none" stroke="#ff5a3c" stroke-width="2.6" stroke-linecap="round" pathLength="1" class="ml"/>`;
+ rows.forEach((r,i)=>{g+=`<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="4.5" fill="#0a0e12" stroke="#ff5a3c" stroke-width="2.2" class="mdot" style="animation-delay:${600+i*90}ms"><title>${esc(r.label)}: ${Number(r.views).toLocaleString('en-IN')} views</title></circle>`});
+ const leg=`<g font-size="12" fill="#c9d2cc"><rect x="${L}" y="12" width="12" height="12" rx="3" fill="#3fb68b"/><text x="${L+18}" y="22">Units sold (left)</text>`+
+  `<line x1="${L+130}" x2="${L+152}" y1="18" y2="18" stroke="#ff5a3c" stroke-width="2.6" stroke-linecap="round"/><circle cx="${L+141}" cy="18" r="3.5" fill="#0a0e12" stroke="#ff5a3c" stroke-width="2"/><text x="${L+160}" y="22">Views (right)</text>`+
+  `<text x="${W-R}" y="22" text-anchor="end" fill="#8a948e">* month so far</text></g>`;
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:560px;display:block" xmlns="http://www.w3.org/2000/svg" font-family="Onest,system-ui,sans-serif">${leg}${g}</svg>`}
 
 /* Sample month-wise numbers, used only when the server cannot be reached */
 function sampleMonths(products,sku,plat){
@@ -971,22 +980,10 @@ function nexus(){
   feedback:{sentiment:{positive:.58,neutral:.17,negative:.25},summary:"Customers like the fabric and fit. Most complaints are about the colour looking different from the ad, and slow delivery outside big cities.",themes:["Fabric quality","Colour in ad vs real","Slow delivery","Size runs small"],creative_feedback:["Re-shoot the main photo in daylight so the colour matches the product.","Show fabric and fit close-ups first, since people praise these most.","Mention delivery time on pages for smaller cities."]},
   actions:[{id:'A-101',type:'pause',target:'Meta: Summer Drop – UGC v3',change:'Stop ad',impact:'Save about ₹18,400 a day',confidence:.93},{id:'A-102',type:'realloc',target:'Meta to TikTok: Founder Story',change:'₹45,000 a day',impact:'More profit per ₹1',confidence:.88},{id:'A-103',type:'pause',target:'Amazon: Sponsored ad, linen shirt',change:'Stop until restock',impact:'Avoids 3 days out of stock',confidence:.96},{id:'A-104',type:'realloc',target:'Retargeting to new customers',change:'₹20,000 a day',impact:'About ₹9,100 more a day',confidence:.74}]};
  const days=n=>Array.from({length:14},(_,i)=>Math.round(n*(0.85+0.3*Math.sin(i/2.3)+i*0.012)));
- const P={
-  Meta:{viewsLabel:'Ad views',clicksLabel:'Link clicks',views:1842000,clicks:41300,orders:1260,spend:680000,sales:2110000,poas:1.34,extra:[['Click rate','2.2%'],['Cost per order','₹540'],['Times one person saw an ad','3.4']],trend:days(131000),
-   reviews:[{s:'good',t:'Fits perfectly and the fabric feels premium.'},{s:'bad',t:'The colour in the Instagram ad looks bluer than what I received.'},{s:'mixed',t:'Nice shirt, but size M is a little tight.'}],
-   todo:['Stop the “Summer Drop – UGC v3” ad. It has been seen too often.','Re-shoot ad photos in daylight so the colour matches.','Test two new video ads using customer reviews.']},
-  TikTok:{viewsLabel:'Video views',clicksLabel:'Link clicks',views:3960000,clicks:52800,orders:980,spend:420000,sales:1460000,poas:1.62,extra:[['Likes','212,400'],['Shares','18,900'],['Average watch time','7.8 sec']],trend:days(283000),
-   reviews:[{s:'good',t:'Saw it in a video, bought it, love it!'},{s:'good',t:'Quality is better than I expected for this price.'},{s:'bad',t:'Delivery to my town took 9 days.'}],
-   todo:['Give “Founder Story” more budget. It earns the most profit.','Make more videos in the same style and keep them under 15 seconds.','Show delivery time in the video caption.']},
-  Shopify:{viewsLabel:'Store visits',clicksLabel:'Added to cart',views:214000,clicks:18600,orders:4120,spend:null,sales:5230000,poas:null,extra:[['Visitors who buy','1.9%'],['Returned orders','4.1%'],['Repeat customers','27%']],trend:days(15300),
-   reviews:[{s:'good',t:'Easy checkout and fast support.'},{s:'mixed',t:'Product is good, but I wanted more payment options.'},{s:'bad',t:'Size chart was confusing.'}],
-   todo:['Add a clearer size chart on product pages.','Add UPI and cash-on-delivery reminders at checkout.','Send a thank-you offer to repeat customers.']},
-  Amazon:{viewsLabel:'Product page views',clicksLabel:'Added to cart',views:96500,clicks:7400,orders:1310,spend:160000,sales:1040000,poas:0.94,extra:[['Buy Box won','81%'],['Returned orders','6.8%'],['Star rating','4.1 / 5']],trend:days(6900),
-   reviews:[{s:'bad',t:'Colour is different from the listing photos.'},{s:'good',t:'Value for money, will buy again.'},{s:'bad',t:'Arrived late and the box was damaged.'}],
-   todo:['Pause the sponsored ad on the linen shirt until it is back in stock.','Replace listing photos with true-colour ones to cut returns.','Ask the courier partner about damaged parcels.']}};
+ const P={};[...AD_PLATFORMS,'Website'].forEach(n=>P[n]={viewsLabel:'Views',clicksLabel:'Clicks',views:0,clicks:0,orders:0,spend:null,sales:0,poas:null,profit:0,rating:null,rows:[],extra:[],reviews:[],todo:[]});
  return{
   P,nav:[{id:'overview',label:'Overview',g:'Insights',i:'M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z'},{id:'causal',label:'Problems to Watch',g:'Insights',i:'M12 3l10 18H2zM12 10v4M12 17.5v.01'},{id:'poas',label:'Profit Check',g:'Insights',i:'M3 17l6-6 4 4 8-8M15 7h6v6'},{id:'platforms',label:'Platform Analysis',g:'Insights',i:'M4 20V10M10 20V4M16 20v-7M2 20h20'},{id:'products',label:'Products',g:'Manage',i:'M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8M12 13v8'},{id:'inventory',label:'Inventory',g:'Manage',i:'M3 7h18v13H3zM3 7l2-4h14l2 4M9 11h6'},{id:'ads',label:'Ads',g:'Manage',i:'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM15 9a3 3 0 010 6M18 6a7 7 0 010 12'},{id:'actions',label:'Things To Do',g:'Workspace',i:'M9 6h11M9 12h11M9 18h11M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2'},{id:'ingestion',label:'Connected Platforms',g:'Workspace',i:'M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1'},{id:'timeline',label:'Time Log & Monthly',g:'Workspace',i:'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2'}],
-  view:'overview',plat:'Meta',backend:(location.protocol.startsWith('http')&&!['5500','5501','5173','3000','8080'].includes(location.port))?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
+  view:'overview',plat:'Instagram',backend:(location.protocol.startsWith('http')&&!['5500','5501','5173','3000','8080'].includes(location.port))?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
   products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},me:{},aiMeta:{},aiBusy:false,
   diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:JSON.parse(JSON.stringify(MOCK.actions)),
   chat:{open:false,input:'',busy:false,msgs:[{me:false,t:"Hi! Ask me anything about your products, sales, profit, stock, ads or platforms."}]},
@@ -1000,15 +997,37 @@ function nexus(){
   get pending(){return this.actions.filter(a=>a.status!=='done').length},
 kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':'M5 8h14l-1 12H6zM9 8V6a3 3 0 016 0v2','Ad spend':'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM15 9a3 3 0 010 6','Customer rating':'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.5 2.9 1-6.1L3.2 9.5l6.1-.9z'}[l]||'M12 3v18M3 12h18'},
   animNum(el,v){const s=String(v==null?'':v),m=s.match(/-?[\d,]*\.?\d+/);
-   if(!m||window.matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=s;return}
+   if(!m){el.textContent=s;return}
    const raw=m[0],target=parseFloat(raw.replace(/,/g,'')),dec=(raw.split('.')[1]||'').length,comma=raw.includes(','),pre=s.slice(0,m.index),suf=s.slice(m.index+raw.length);
    const from=el._nn!=null?el._nn:0;el._nn=target;cancelAnimationFrame(el._raf);if(from===target){el.textContent=s;return}
    const f=x=>pre+(comma?x.toLocaleString('en-IN',{minimumFractionDigits:dec,maximumFractionDigits:dec}):x.toFixed(dec))+suf;
    const t0=performance.now(),d=1200,tick=t=>{const p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);el.textContent=f(from+(target-from)*e);if(p<1)el._raf=requestAnimationFrame(tick);else el.textContent=s};el._raf=requestAnimationFrame(tick)},
   pct(v){return v==null?'-':(v<=1?Math.round(v*100):Math.round(v))+'%'},
-  stats(n){const m=P[n];const s=[[m.viewsLabel,fmt(m.views)],[m.clicksLabel,fmt(m.clicks)],['Orders',fmt(m.orders)],['Sales',rs(m.sales)]];
-   s.push(m.spend==null?['Ad spend','No ads here']:['Ad spend',rs(m.spend)],m.poas==null?['Profit per ₹1 of ads','Not applicable']:['Profit per ₹1 of ads',m.poas.toFixed(2)]);return s.concat(m.extra).slice(0,8)},
+  stats(n){const m=P[n];if(!m)return[];const s=[[m.viewsLabel,fmt(m.views)],[m.clicksLabel,fmt(m.clicks)],['Orders',fmt(m.orders)],['Sales',rs(m.sales)]];
+   if(n==='Website')return[['Orders',fmt(m.orders)],['Sales',rs(m.sales)],['Ad spend','No ads here'],['Profit per ₹1 of ads','Not applicable']];
+   return s.concat([m.spend==null?['Ad spend','No ads here']:['Ad spend',rs(m.spend)],m.poas==null?['Profit per ₹1 of ads','No ads yet']:['Profit per ₹1 of ads',m.poas.toFixed(2)],['Profit after ads',m.spend==null?'-':rs(m.profit)],['Customer rating',m.rating?'★ '+m.rating+' ('+fmt(m.reviewCount)+')':'No reviews yet']])},
+  rebuildPlat(){const price={};this.products.forEach(p=>price[p.sku]=p.price);
+   AD_PLATFORMS.forEach(n=>{const rows=[];this.adsData.forEach(p=>{const a=(p.ads||[]).find(x=>x.platform===n&&x.status!=='stopped');if(a)rows.push({sku:p.sku,name:p.name,cover:p.days_of_cover,status:a.status,views:a.views||0,clicks:a.clicks||0,orders:a.orders||0,spend:a.spend||0,profit:a.profit_after_ads||0,budget:a.daily_budget||0,price:price[p.sku]||0,rating:a.avg_rating,rc:a.review_count||0,rv:a.recent_reviews||[]})});
+    const sum=k=>rows.reduce((t,r)=>t+(r[k]||0),0),spend=sum('spend'),profit=sum('profit'),rc=sum('rc'),rr=rows.reduce((t,r)=>t+(r.rating||0)*r.rc,0);
+    const rev=[];rows.forEach(r=>r.rv.forEach(v=>rev.push({s:v.stars>=4?'good':v.stars<=2?'bad':'mixed',t:v.text,n:r.name})));
+    const todo=[];rows.filter(r=>r.spend>0&&(r.profit+r.spend)/r.spend<1).forEach(r=>todo.push(`Pause or cut the ${r.name} ad. It earns only ₹${((r.profit+r.spend)/r.spend).toFixed(2)} for every ₹1 spent.`));
+    rows.filter(r=>r.cover<7&&r.status==='active').forEach(r=>todo.push(`${r.name} has only ${r.cover} days of stock. Lower its budget or reorder before more ads run.`));
+    const ok=rows.filter(r=>r.cover>=14&&r.spend>0&&(r.profit+r.spend)/r.spend>=1).sort((x,y)=>(y.profit+y.spend)/y.spend-(x.profit+x.spend)/x.spend)[0];
+    if(ok)todo.push(`Give ${ok.name} more budget. It earns ₹${((ok.profit+ok.spend)/ok.spend).toFixed(2)} per ₹1 and has ${ok.cover} days of stock.`);
+    if(!rows.length)todo.push('No product is advertised here yet. Start one from the Advertisement page.');
+    else if(!todo.length)todo.push('Nothing urgent here. Keep watching stock and reviews.');
+    Object.assign(this.P[n],{viewsLabel:'Ad views',clicksLabel:'Clicks',views:sum('views'),clicks:sum('clicks'),orders:sum('orders'),spend:rows.length?spend:null,sales:rows.reduce((t,r)=>t+r.orders*r.price,0),profit,poas:spend>0?(profit+spend)/spend:null,rating:rc?(rr/rc).toFixed(1):null,reviewCount:rc,rows,reviews:rev.slice(0,8),todo})});
+   const w=this.P.Website,by=this.orders.byProduct||{};let units=0,sales=0;Object.keys(by).forEach(sku=>{const u=by[sku]['Website']||by[sku]['Shopify']||0;units+=u;sales+=u*(price[sku]||0)});
+   Object.assign(w,{viewsLabel:'Store visits',clicksLabel:'Added to cart',views:0,clicks:0,orders:units,sales,spend:null,poas:null,rows:[],reviews:[],todo:[units?'Orders come from your own store. Keep the size chart and checkout simple.':'No website orders synced yet. Press Sync orders on the Inventory page.']})},
+  platSvg(n){const m=P[n],rows=(m&&m.rows)||[];if(!rows.length)return '<p style="color:#8a948e;font-size:13px;padding:40px 0;text-align:center">'+(n==='Website'?'The website has no ad views to chart.':'No product is advertised on '+n+' yet, so there is nothing to draw.')+'</p>';
+   const W=640,H=250,L=48,R=16,T=34,B=44,pw=W-L-R,ph=H-T-B,k=rows.length,slot=pw/k,bw=Math.min(54,slot*.5);
+   const nice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return(f<=1?1:f<=2?2:f<=5?5:10)*p},short=v=>v>=1e5?(v/1e5).toFixed(1).replace('.0','')+'L':v>=1e3?(v/1e3).toFixed(1).replace('.0','')+'k':String(Math.round(v));
+   const mx=nice(Math.max(1,...rows.map(r=>r.views))*1.1),y=v=>T+ph-v/mx*ph,esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));let g='';
+   for(let i=0;i<=4;i++){const yy=T+ph-ph*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#2a3238" stroke-opacity=".6"/><text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="#8a948e">${short(mx*i/4)}</text>`}
+   rows.forEach((r,i)=>{const x=L+slot*i+slot/2,h=T+ph-y(r.views);g+=`<rect x="${x-bw/2}" y="${y(r.views)}" width="${bw}" height="${h}" rx="5" fill="url(#pg)" class="mb" style="animation-delay:${i*90}ms"><title>${esc(r.name)}: ${r.views.toLocaleString('en-IN')} views, ${r.orders} orders, ₹${Math.round(r.spend).toLocaleString('en-IN')} spent</title></rect><text x="${x}" y="${y(r.views)-7}" text-anchor="middle" font-size="12" font-weight="600" fill="#dfe7e0">${short(r.views)}</text><text x="${x}" y="${H-B+18}" text-anchor="middle" font-size="12" fill="#8a948e">${esc(r.name.length>14?r.name.slice(0,13)+'…':r.name)}</text><text x="${x}" y="${H-B+33}" text-anchor="middle" font-size="11" fill="#d98a7f">${r.orders} orders</text>`});
+   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block" xmlns="http://www.w3.org/2000/svg" font-family="Onest,system-ui,sans-serif"><defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a3c"/><stop offset="1" stop-color="#e0231c" stop-opacity=".45"/></linearGradient></defs>${g}</svg>`},
   init(){
+   this.rebuildPlat();this.$watch('adsData',()=>this.rebuildPlat());this.$watch('products',()=>this.rebuildPlat());this.$watch('orders.byProduct',()=>this.rebuildPlat());
    try{this.backend=localStorage.getItem('nexus_backend')||this.backend}catch(e){}
    Chart.defaults.color='#8a948e';Chart.defaults.borderColor='#1e262c';Chart.defaults.font.family="'Onest',sans-serif";this.ping();setInterval(()=>this.ping(),15000);
    this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);setInterval(()=>this.syncOrders(),30000);
@@ -1134,8 +1153,8 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    if(ex){if(ex.msg!==n.msg||ex.sev!==n.sev){Object.assign(ex,n)}return}
    this.notes.push({...n,time,read:false});
    if((n.sev==='critical'||n.sev==='warning')&&!this.popped[n.key]){this.popped[n.key]=true;this.queuePopup(this.notes[this.notes.length-1])}},
-  queuePopup(n){if(!this.popup){this.showPopup(n)}else if(this.popupQueue.length<5)this.popupQueue.push(n)},
-  showPopup(n){this.popup=n;clearTimeout(this._pt);if(n.sev!=='critical')this._pt=setTimeout(()=>this.dismissPopup(),15000)},
+  queuePopup(n){if(n.sev!=='critical'||this.popup)return;try{const now=Date.now(),day=new Date().toISOString().slice(0,10),last=+localStorage.getItem('nx_pop_t')||0,seen=JSON.parse(localStorage.getItem('nx_pop_seen')||'{}');if(now-last<120000||seen[n.key]===day)return;seen[n.key]=day;localStorage.setItem('nx_pop_seen',JSON.stringify(seen));localStorage.setItem('nx_pop_t',String(now))}catch(e){}this.showPopup(n)},
+  showPopup(n){this.popup=n;clearTimeout(this._pt);this._pt=setTimeout(()=>this.dismissPopup(),10000)},
   dismissPopup(){if(this.popup)this.popup.read=true;this.popup=null;const nx=this.popupQueue.shift();if(nx)setTimeout(()=>this.showPopup(nx),400)},
   openNote(n){n.read=true;if(this.popup&&this.popup.key===n.key)this.dismissPopup();this.notesOpen=false;if(n.go){this.view=n.go;if(n.sku){this.adSku=n.sku}}},
   markAllRead(){this.notes.forEach(n=>n.read=true)},
@@ -1234,7 +1253,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
     let seen='';try{seen=localStorage.getItem('nexus_tip_seen')||''}catch(e){}
     if(id&&seen===id)return;
     try{localStorage.setItem('nexus_tip_seen',id)}catch(e){}
-    clearTimeout(this._tt);this.tip={show:true,loading:false,title:d.title,text:d.tip};this._tt=setTimeout(()=>this.tip.show=false,25000)}catch(e){}},
+    clearTimeout(this._tt);this.tip={show:true,loading:false,title:d.title,text:d.tip};this._tt=setTimeout(()=>this.tip.show=false,12000)}catch(e){}},
   async loadAiMeta(){try{this.aiMeta=await this.api('/api/ai-insights')}catch(e){}},
   async refreshAi(){if(this.aiBusy)return;this.aiBusy=true;
    try{const m=await this.api('/api/ai-insights/refresh',{method:'POST'});this.aiMeta=m;
@@ -1244,7 +1263,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    catch(e){this.toast(e.detail||('Could not refresh: '+e.message),false)}this.aiBusy=false},
   async showTip(s){clearTimeout(this._tt);this.tip={show:true,loading:true,title:'',text:''};let t=this.tipCache[s];
    if(!t){try{const d=await this.api('/api/section-tip?section='+s);t={title:d.title,text:d.tip};this.tipCache[s]=t}catch(e){t=TIPS[s]||TIPS.overview}}
-   if(this.view!==s)return;this.tip={show:true,loading:false,...t};this._tt=setTimeout(()=>this.tip.show=false,25000)},
+   if(this.view!==s)return;this.tip={show:true,loading:false,...t};this._tt=setTimeout(()=>this.tip.show=false,12000)},
   /* chat: only data questions */
   async ask(q){q=(q||this.chat.input).trim();if(!q||this.chat.busy)return;this.chat.input='';this.chat.msgs.push({me:true,t:q});this.chat.busy=true;this.scroll();
    const history=this.chat.msgs.slice(1,-1).slice(-6);let t;
@@ -1252,7 +1271,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    if(!t)t=this.answer(q).t+'\n\n(The server is not reachable, so this answer comes from the sample numbers on this page.)';
    this.chat.msgs.push({me:false,t});this.chat.busy=false;this.scroll()},
   scroll(){this.$nextTick(()=>{const e=this.$refs.msgs;e.scrollTop=e.scrollHeight})},
-  answer(q){q=q.toLowerCase();const al={instagram:'Meta',facebook:'Meta',meta:'Meta',tiktok:'TikTok',shopify:'Shopify',amazon:'Amazon'};
+  answer(q){q=q.toLowerCase();const al={instagram:'Instagram',facebook:'Facebook',meta:'Instagram',youtube:'YouTube',google:'Google',tiktok:'TikTok',flipkart:'Flipkart',shopify:'Website',website:'Website',amazon:'Amazon'};
    let pl=null;for(const k in al)if(q.includes(k)){pl=al[k];break}
    const h=(...w)=>w.some(x=>q.includes(x));
    const T={views:h('view','reach','watch','visit','seen','traffic'),clicks:h('click','cart'),orders:h('order','sale','revenue','sold'),spend:h('spend','spent','cost','budget'),profit:h('profit','poas','roas','earn','best','worst','compare','better'),reviews:h('review','feedback','comment','rating','sentiment','complain','customer say'),todo:h('should','action','improve','fix','suggest','recommend','next','advice','what to do'),stock:h('stock','inventory','product','price','margin','reorder','restock'),future:h('future','predict','forecast','expect','next week','will '),tired:h('tired','fatigue','creative')};
@@ -1278,20 +1297,20 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    if(T.stock)this.products.forEach(p=>L.push(`${p.name}: ${fmt(p.stock)} in stock, lasts ${this.cover(p)} days, price ₹${fmt(p.price)}, profit ${this.margin(p)}% per sale`));
    if(T.future&&this.forecast)L.push(this.forecast.summary,this.forecast.inventory_advice);
    if(T.tired)this.fatigue.filter(c=>c.s>60).forEach(c=>L.push(`${c.n}: seen ${c.f} times per person, clicks ${c.d}`));
-   if(!L.length)this.stats(pl||'Meta').forEach(s=>L.push(`${s[0]}: ${s[1]}`));
+   if(!L.length)this.stats(pl||'Instagram').forEach(s=>L.push(`${s[0]}: ${s[1]}`));
    return{ok:true,t:(pl&&!L[0].startsWith(pl)?pl+'\n':'')+L.join('\n')}},
   drawMain(){Chart.defaults.color='#8a948e';Chart.defaults.borderColor='#1e262c';Chart.defaults.font.family="'Onest',sans-serif";
    this.charts.pie=new Chart(document.getElementById('cPie'),{type:'doughnut',data:{labels:['TikTok','Instagram','Shopify','Amazon'],datasets:[{data:[34,29,22,15],backgroundColor:['#e0231c','#f59e0b','#3fb68b','#38bdf8'],borderColor:'#0a0e12',borderWidth:3}]},options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:14}},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed}% of reviews`}}}}});
    const d=Array.from({length:14},(_,i)=>'Day '+(i+1));
    this.charts.line=new Chart(document.getElementById('cLine'),{type:'line',data:{labels:d,datasets:[{label:'Ad spend',data:[210,225,218,240,255,262,248,270,285,279,296,310,304,322],borderColor:'#e0231c',tension:.3,pointRadius:0,borderWidth:2},{label:'Profit made',data:[62,70,66,81,94,99,92,108,121,118,133,146,142,158],borderColor:'#3fb68b',tension:.3,pointRadius:0,borderWidth:2}]},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',align:'end',labels:{boxWidth:10}}},scales:{y:{beginAtZero:true,grid:{color:'#161c20'}},x:{grid:{display:false}}}}})},
-  drawPlat(){if(this.charts.plat)this.charts.plat.destroy();const m=P[this.plat];
+  drawPlat(){return;const m=P[this.plat];
    this.charts.plat=new Chart(document.getElementById('cPlat'),{type:'bar',data:{labels:Array.from({length:14},(_,i)=>'Day '+(i+1)),datasets:[{label:m.viewsLabel,data:m.trend,backgroundColor:this.plat==='TikTok'?'#ff5a3c':'#3fb68b',borderRadius:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#161c20'}},x:{grid:{display:false}}}}})}
  }}
 </script>
 <script>
 /* Cursor, spotlight, ripples, sparks, magnetic buttons, card glow + tilt, scroll progress */
 (function(){
- const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches, fine=matchMedia('(hover: hover) and (pointer: fine)').matches;
+ const reduce=false, fine=matchMedia('(hover: hover) and (pointer: fine)').matches;
  const bgl=document.getElementById('bgl'), ring=document.getElementById('cRing'), dot=document.getElementById('cDot'), sprog=document.getElementById('sprog');
  const main=document.querySelector('main');
  if(main&&sprog)main.addEventListener('scroll',()=>{const m=main.scrollHeight-main.clientHeight;sprog.style.setProperty('--sp',m>0?(main.scrollTop/m).toFixed(3):0)},{passive:true});
@@ -1303,30 +1322,19 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
   mx=e.clientX;my=e.clientY;
   dot.style.transform=`translate3d(${mx}px,${my}px,0)`;
   bgl.style.setProperty('--cx',mx+'px');bgl.style.setProperty('--cy',my+'px');
-  bgl.style.setProperty('--px',((mx/innerWidth-.5)*-18).toFixed(1)+'px');bgl.style.setProperty('--py',((my/innerHeight-.5)*-18).toFixed(1)+'px');
   const t=e.target;
   ring.classList.toggle('txt',!!t.closest('input,textarea'));
   ring.classList.toggle('big',!t.closest('input,textarea')&&!!t.closest(INTER));
   const card=t.closest('.card');
-  if(card){const r=card.getBoundingClientRect();card.style.setProperty('--mx',(mx-r.left)+'px');card.style.setProperty('--my',(my-r.top)+'px');
-   if(card.classList.contains('kpi')){const x=(mx-r.left)/r.width-.5,y=(my-r.top)/r.height-.5;card.style.transform=`perspective(700px) rotateX(${(-y*8).toFixed(2)}deg) rotateY(${(x*8).toFixed(2)}deg) translateY(-3px)`}}
-  const now=performance.now();
-  if(now-lastSpark>45&&document.querySelectorAll('.spark').length<16){lastSpark=now;const s=document.createElement('i');s.className='spark';
-   s.style.left=mx+'px';s.style.top=my+'px';s.style.setProperty('--sx',(Math.random()*16-8)+'px');s.style.setProperty('--sy',(Math.random()*14+4)+'px');
-   s.style.opacity=(.35+Math.random()*.4).toFixed(2);document.body.appendChild(s);setTimeout(()=>s.remove(),700)}
+  if(card){const r=card.getBoundingClientRect();card.style.setProperty('--mx',(mx-r.left)+'px');card.style.setProperty('--my',(my-r.top)+'px');}
  },{passive:true});
  document.addEventListener('mouseout',e=>{const c=e.target.closest&&e.target.closest('.kpi');if(c&&!c.contains(e.relatedTarget))c.style.transform=''});
  document.addEventListener('mouseleave',()=>document.documentElement.classList.remove('c-on'));
  document.addEventListener('mouseenter',()=>document.documentElement.classList.add('c-on'));
- addEventListener('mousedown',e=>{ring.classList.add('down');const r=document.createElement('i');r.className='ripple';r.style.left=e.clientX+'px';r.style.top=e.clientY+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),700)});
+ addEventListener('mousedown',e=>{ring.classList.add('down');});
  addEventListener('mouseup',()=>ring.classList.remove('down'));
- (function loop(){rx+=(mx-rx)*.18;ry+=(my-ry)*.18;ring.style.transform=`translate3d(${rx}px,${ry}px,0)`;requestAnimationFrame(loop)})();
- /* magnetic pull on main buttons */
- const MAG='.btn-p,.chat-fab,.icon-btn,.pill';
- document.addEventListener('mousemove',e=>{const b=e.target.closest(MAG);document.querySelectorAll('[data-mag]').forEach(x=>{if(x!==b){x.style.translate='';x.removeAttribute('data-mag')}});
-  if(!b)return;const r=b.getBoundingClientRect();b.setAttribute('data-mag','1');b.style.transition='translate .2s ease-out';
-  b.style.translate=`${((e.clientX-r.left-r.width/2)*.22).toFixed(1)}px ${((e.clientY-r.top-r.height/2)*.3).toFixed(1)}px`},{passive:true});
-})();
+ 
+ })();
 </script>
 
 
