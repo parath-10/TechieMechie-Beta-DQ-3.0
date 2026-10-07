@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEXUS // Autonomous D2C Advertising Intelligence &amp; Decision Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{ink:'#0d1117',panel:'#131920',raise:'#1a212a',line:'#27303b',mute:'#8b97a7',verm:'#ff4b2b',emer:'#10b981'},fontFamily:{sans:['"Public Sans"','system-ui','sans-serif']}}}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.5/cdn.min.js"></script>
+<style>
+ [x-cloak]{display:none!important}
+ body{background:#0d1117;color:#d8dee8;font-family:'Public Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+ .card{background:#131920;border:1px solid #27303b;border-radius:4px}
+ .nav{display:block;width:100%;text-align:left;padding:8px 14px;font-size:14px;color:#8b97a7;border-left:3px solid transparent}
+ .nav:hover{color:#fff;background:#1a212a}.nav.on{color:#fff;background:#1a212a;border-left-color:#ff4b2b}
+ .btn{padding:7px 14px;border-radius:4px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:8px}
+ .btn-p{background:#ff4b2b;color:#fff}.btn-p:hover{background:#e8401f}
+ .btn-g{border:1px solid #10b981;color:#34d399}.btn-g:hover{background:rgba(16,185,129,.12)}
+ .btn:disabled{opacity:.5;cursor:not-allowed}
+ .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+ @keyframes sp{to{transform:rotate(360deg)}}
+ .sk{background:#1a212a;border-radius:3px;animation:pl 1.2s ease-in-out infinite}
+ @keyframes pl{50%{opacity:.45}}
+ th{font-weight:500;color:#8b97a7;font-size:13px;text-align:left;padding:9px 14px;border-bottom:1px solid #27303b}
+ td{padding:11px 14px;border-bottom:1px solid #1d252f;font-size:14px}
+ input,textarea{background:#0d1117;border:1px solid #27303b;border-radius:4px;color:#d8dee8;outline:none}
+ input:focus,textarea:focus{border-color:#ff4b2b}
+ :focus-visible{outline:2px solid #ff4b2b;outline-offset:2px}
+ @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body x-data="nexus()" x-init="init()" x-cloak class="h-screen flex overflow-hidden">
+
+<aside class="w-56 shrink-0 bg-panel border-r border-line flex flex-col">
+  <div class="px-5 py-4 border-b border-line"><div class="font-semibold text-white">NEXUS // D2C</div><div class="text-xs text-mute mt-0.5">Ad performance and decisions</div></div>
+  <nav class="py-3 flex-1">
+    <template x-for="n in nav" :key="n.id"><button class="nav" :class="view===n.id&&'on'" @click="view=n.id"><span x-text="n.label"></span><span x-show="n.id==='actions'&&pending" class="float-right text-xs bg-verm text-white rounded px-1.5" x-text="pending"></span></button></template>
+  </nav>
+</aside>
+
+<div class="flex-1 flex flex-col min-w-0">
+  <header class="h-14 shrink-0 border-b border-line bg-panel flex items-center gap-4 px-6">
+    <div class="text-sm text-mute">NEXUS / <span class="text-white font-medium" x-text="current.label"></span></div>
+    <div class="ml-auto flex items-center gap-3 text-sm">
+      <button class="flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium" :class="openTasks.some(n=>n.sev==='critical')?'border-verm text-white bg-verm/10':openTasks.length?'border-amber-400/60 text-white':'border-line text-mute hover:text-white'" @click="view='actions'" aria-label="Things to do">
+        <span class="leading-none">✅</span><span>Things to do</span>
+        <span x-show="openTasks.length" class="min-w-5 h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center" :class="openTasks.some(n=>n.sev==='critical')?'bg-verm text-white':'bg-amber-400 text-black'" x-text="openTasks.length"></span></button>
+      <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" :class="online===true?'bg-emer':online===false?'bg-verm':'bg-mute'"></span><span class="text-mute" x-text="online===true?'Server connected':online===false?'Server not reachable (showing sample data)':'Checking server…'"></span></span>
+      <button class="flex items-center gap-2 text-xs px-2 py-1 rounded border border-line hover:border-mute" @click="checkAi(true)" :title="ai.reason||'Check live AI'">
+        <span class="w-2 h-2 rounded-full" :class="ai.live===true?'bg-emer':ai.live===false?'bg-amber-400':'bg-mute'"></span>
+        <span class="text-mute" x-text="ai.checking?'Checking AI…':ai.live===true?'Live AI on':ai.live===false?'Live AI off — why?':'AI not checked'"></span></button>
+      <label for="burl" class="text-mute text-xs">Server address</label>
+      <input id="burl" x-model.lazy="backend" @change="saveUrl();ping()" class="text-xs w-52 px-2.5 py-1.5" placeholder="http://localhost:8000">
+      <span class="text-xs px-2 py-1 rounded border border-line text-mute" title="Time the system takes to reply">Reply time &lt;450ms</span>
+    </div>
+  </header>
+
+  <div x-show="warn" class="bg-amber-500/10 border-b border-amber-500/30 text-amber-300 text-sm px-6 py-2 flex gap-3"><span x-text="warn"></span><button class="ml-auto underline" @click="warn=''">Close</button></div>
+
+  <main class="flex-1 overflow-y-auto p-6 space-y-6">
+
+  <!-- OVERVIEW -->
+  <section x-show="view==='overview'" class="space-y-6 max-w-[1400px]">
+    <div class="flex flex-wrap items-end gap-3">
+      <div><h1 class="text-2xl font-semibold text-white" x-text="greeting()"></h1><p class="text-sm text-mute mt-1" x-text="todayLabel()+' · numbers update every 30 seconds'"></p></div>
+    </div>
+
+    <!-- Today's focus: the single most important thing -->
+    <div class="rounded-lg p-5 flex flex-wrap items-center gap-4 border" :class="focusNote?SEV[focusNote.sev].box:SEV.success.box">
+      <div class="text-3xl leading-none" x-text="focusNote?SEV[focusNote.sev].icon:'✅'"></div>
+      <div class="flex-1 min-w-[240px]"><div class="text-xs font-semibold uppercase tracking-wide" :class="focusNote?SEV[focusNote.sev].text:SEV.success.text">Today's focus</div>
+        <div class="text-lg font-semibold text-white mt-0.5" x-text="focusNote?focusNote.title:'Everything looks healthy'"></div>
+        <div class="text-[15px] text-gray-300 mt-1 leading-relaxed" x-text="focusNote?focusNote.msg:'No urgent problems right now. Keep an eye on stock and ad results.'"></div></div>
+      <div class="flex gap-2"><button x-show="focusNote" class="btn btn-p" @click="view='actions'">Fix it</button>
+        <button x-show="openTasks.length>1" class="btn border border-line text-white" @click="view='actions'" x-text="'All things to do ('+openTasks.length+')'"></button></div>
+    </div>
+
+    <!-- This month in numbers -->
+    <div><div class="text-sm font-semibold text-white mb-2">This month so far</div>
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <template x-for="k in ovKpis" :key="k.l"><div class="card p-5">
+        <div class="text-sm text-mute" x-text="k.l"></div>
+        <div class="text-3xl font-semibold text-white mt-2" x-text="k.v"></div>
+        <div class="text-sm mt-2 flex items-center gap-1.5" :class="k.ch==null?'text-mute':(k.good?'text-emer':'text-verm')">
+          <span x-show="k.ch!=null" x-text="k.ch>=0?'▲':'▼'"></span><span x-text="k.s"></span></div>
+      </div></template>
+    </div></div>
+
+    <div class="grid xl:grid-cols-3 gap-4">
+      <div class="card p-5 xl:col-span-2"><div class="flex items-center justify-between mb-2"><div><div class="text-base font-semibold text-white">Sales and views, last 6 months</div><div class="text-sm text-mute">All products, all platforms</div></div>
+        <button class="text-sm text-verm hover:underline" @click="view='timeline'">Details</button></div>
+        <div x-html="ov.svg"></div></div>
+      <div class="card p-5 flex flex-col"><div class="flex items-center justify-between mb-3"><div class="text-base font-semibold text-white">Things to do</div><button class="text-sm text-verm hover:underline" @click="view='actions'">See all</button></div>
+        <div class="space-y-2.5 flex-1">
+          <template x-for="n in openTasks.slice(0,5)" :key="n.key"><button class="w-full text-left rounded-md p-3 border-l-4 bg-raise hover:bg-[#202833]" :class="SEV[n.sev].border" @click="view='actions'">
+            <div class="flex items-start gap-2"><span x-text="SEV[n.sev].icon"></span><div class="min-w-0"><div class="text-sm font-semibold text-white" x-text="n.title"></div><div class="text-sm text-gray-300 mt-0.5 leading-snug" x-text="n.msg"></div></div></div></button></template>
+          <div x-show="!openTasks.length" class="text-sm text-mute">✅ Nothing urgent right now.</div>
+        </div></div>
+    </div>
+
+    <div class="grid xl:grid-cols-3 gap-4">
+      <div class="card xl:col-span-2"><div class="p-5 pb-3 flex items-center justify-between"><div class="text-base font-semibold text-white">Products at a glance</div><button class="text-sm text-verm hover:underline" @click="view='inventory'">Manage stock</button></div>
+        <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Stock</th><th>Lasts</th><th>Sells per day</th><th>Margin</th></tr></thead><tbody>
+          <template x-for="p in products" :key="p.sku"><tr>
+            <td><div class="text-white" x-text="p.name"></div><div class="text-xs text-mute" x-text="p.status==='active'?p.category||'':'Paused'"></div></td>
+            <td class="min-w-[140px]"><div class="text-sm" x-text="fmt(p.stock)+' units'"></div><div class="h-1.5 bg-raise rounded mt-1 overflow-hidden"><div class="h-full rounded" :class="cover(p)<7?'bg-verm':cover(p)<14?'bg-amber-400':'bg-emer'" :style="'width:'+Math.min(100,cover(p)>=999?100:cover(p)/30*100)+'%'"></div></div></td>
+            <td><span class="text-xs px-2 py-1 rounded-full font-medium" :class="cover(p)<7?'bg-verm/15 text-verm':cover(p)<14?'bg-amber-400/15 text-amber-300':'bg-emer/15 text-emer'" x-text="p.stock<=0?'Out of stock':cover(p)>=999?'No sales yet':cover(p)+' days'"></span></td>
+            <td x-text="p.daily_sales"></td><td x-text="ps(p).margin+'%'"></td></tr></template>
+        </tbody></table></div></div>
+      <div class="card p-5"><div class="flex items-center justify-between mb-3"><div class="text-base font-semibold text-white">Orders by platform</div><button class="text-sm text-verm hover:underline" @click="view='ingestion'">Accounts</button></div>
+        <div class="space-y-3"><template x-for="r in platformTotals" :key="r.p"><div>
+          <div class="flex justify-between text-sm"><span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" :class="isConn(r.p==='Website'?'Shopify':r.p)?'bg-emer':'bg-line'"></span><span class="text-white" x-text="r.p"></span></span><span class="text-mute" x-text="fmt(r.n)"></span></div>
+          <div class="h-2 bg-raise rounded mt-1 overflow-hidden"><div class="h-full rounded" :style="'width:'+(r.n/platformTotals[0].n*100)+'%;background:'+(PCOLOR[r.p]||PCOLOR.Shopify)"></div></div></div></template>
+          <div x-show="!platformTotals.length" class="text-sm text-mute">No orders yet.</div>
+          <div class="text-xs text-mute pt-1">Green dot = account connected and syncing.</div></div></div>
+    </div>
+
+    <!-- AI forecast -->
+    <div class="card p-5">
+      <div class="flex items-start justify-between mb-4"><div><div class="text-base font-semibold text-white">✨ What the AI expects next</div><div class="text-sm text-mute" x-text="forecast?forecast.forecast_horizon:'Working out the forecast…'"></div></div>
+        <button class="text-sm text-verm hover:underline" @click="loadForecast()">Refresh</button></div>
+      <div x-show="!forecast" class="space-y-2"><div class="sk h-14"></div><div class="sk h-8"></div></div>
+      <div x-show="forecast" class="grid lg:grid-cols-3 gap-5">
+        <p class="text-[15px] leading-relaxed text-gray-200 lg:col-span-2" x-text="forecast?.summary"></p>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Profit per ₹1 of ads</div><div class="text-xl font-semibold text-emer" x-text="forecast?.predicted_poas?.toFixed(2)"></div></div>
+          <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Sales growth</div><div class="text-xl font-semibold" x-text="(forecast?.predicted_revenue_growth_pct>=0?'+':'')+forecast?.predicted_revenue_growth_pct+'%'"></div></div>
+          <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Ads getting tired</div><div class="text-xl font-semibold capitalize" :class="forecast?.fatigue_risk_level==='high'?'text-verm':'text-white'" x-text="forecast?.fatigue_risk_level"></div></div>
+          <div class="bg-raise rounded p-3"><div class="text-xs text-mute">First stock-out</div><div class="text-xl font-semibold" :class="forecast?.stockout_risk_days<7?'text-verm':'text-white'" x-text="forecast?.stockout_risk_days+' days'"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-sm font-semibold text-white -mb-2">AI tools</div>
+    <div class="grid xl:grid-cols-2 gap-4">
+      <div class="card p-5">
+        <div class="flex items-start justify-between mb-4"><div><div class="font-medium">Find the main problem</div><div class="text-xs text-mute">Checks your latest numbers and explains what is going wrong</div></div>
+          <button class="btn btn-p" :disabled="diag.loading" @click="runDiagnosis()"><span x-show="diag.loading" class="spin"></span><span x-text="diag.loading?'Checking…':'Find the problem'"></span></button></div>
+        <div x-show="diag.loading" class="space-y-3"><div class="sk h-5 w-3/4"></div><div class="sk h-16"></div><div class="grid grid-cols-2 gap-3"><div class="sk h-14"></div><div class="sk h-14"></div></div><div class="sk h-10"></div></div>
+        <div x-show="!diag.loading&&!diag.data" class="text-sm text-mute border border-dashed border-line rounded p-6 text-center">Nothing checked yet. Press “Find the problem”.</div>
+        <div x-show="!diag.loading&&diag.data" class="space-y-4">
+          <div><div class="text-xs text-mute mb-1">Why this is happening</div><div class="text-sm leading-relaxed" x-text="diag.data?.root_cause"></div></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-raise rounded p-3"><div class="text-xs text-mute">How sure we are</div><div class="text-xl text-emer font-semibold" x-text="diag.data?pct(diag.data.confidence):''"></div></div>
+            <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Room to improve (out of 100)</div><div class="text-xl text-verm font-semibold" x-text="diag.data?.opportunity_score"></div></div>
+          </div>
+          <div class="border-l-2 border-verm pl-3"><div class="text-xs text-mute mb-1">What to do</div><div class="text-sm" x-text="diag.data?.recommended_action"></div></div>
+          <div class="text-xs text-mute" x-text="diag.source"></div>
+        </div>
+      </div>
+      <div class="card p-5">
+        <div class="font-medium">Understand your reviews</div><div class="text-xs text-mute mb-3">Paste customer reviews or comments, one per line</div>
+        <textarea x-model="fb.text" rows="5" class="w-full p-3 text-sm resize-y" placeholder="Example: Great fabric, but the colour was different from the ad."></textarea>
+        <div class="flex items-center gap-3 mt-3"><button class="btn btn-p" :disabled="fb.loading||!fb.text.trim()" @click="analyzeFeedback()"><span x-show="fb.loading" class="spin"></span><span x-text="fb.loading?'Reading…':'Analyse reviews'"></span></button><button class="text-xs text-mute underline" @click="fb.text=sample">Use sample reviews</button></div>
+        <div x-show="fb.loading" class="space-y-2 mt-4"><div class="sk h-4 w-1/2"></div><div class="sk h-10"></div><div class="sk h-10"></div></div>
+        <div x-show="!fb.loading&&fb.report" class="mt-4 space-y-3">
+          <div class="flex gap-2 text-xs"><span class="px-2 py-1 rounded bg-emer/15 text-emer" x-text="'Happy '+pct(fb.report?.sentiment.positive)"></span><span class="px-2 py-1 rounded bg-raise text-mute" x-text="'Neutral '+pct(fb.report?.sentiment.neutral)"></span><span class="px-2 py-1 rounded bg-verm/15 text-verm" x-text="'Unhappy '+pct(fb.report?.sentiment.negative)"></span></div>
+          <p class="text-sm leading-relaxed" x-text="fb.report?.summary"></p>
+          <div><div class="text-xs text-mute mb-1">Topics people mention</div><div class="flex flex-wrap gap-1.5"><template x-for="t in fb.report?.themes||[]"><span class="text-xs px-2 py-0.5 rounded border border-line" x-text="t"></span></template></div></div>
+          <div><div class="text-xs text-mute mb-1">How to improve your ads</div><ul class="space-y-1.5"><template x-for="c in fb.report?.creative_feedback||[]"><li class="text-sm pl-3 border-l border-emer" x-text="c"></li></template></ul></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLATFORM ANALYSIS -->
+  <section x-show="view==='platforms'" class="space-y-4">
+    <div class="flex gap-2"><template x-for="n in Object.keys(P)" :key="n"><button class="px-4 py-1.5 text-sm rounded border" :class="plat===n?'border-verm text-white bg-raise':'border-line text-mute hover:text-white'" @click="plat=n" x-text="n==='Meta'?'Meta (Facebook & Instagram)':n"></button></template></div>
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <template x-for="s in stats(plat)" :key="s[0]"><div class="card p-4"><div class="text-sm text-mute" x-text="s[0]"></div><div class="text-xl font-semibold mt-1" x-text="s[1]"></div></div></template>
+    </div>
+    <div class="grid xl:grid-cols-3 gap-4">
+      <div class="card p-4 xl:col-span-2"><div class="font-medium mb-1" x-text="P[plat].viewsLabel+' per day'"></div><div class="text-xs text-mute mb-3">Last 14 days</div><div class="h-56"><canvas id="cPlat"></canvas></div></div>
+      <div class="card p-4"><div class="font-medium mb-3">What to do on <span x-text="plat"></span></div><ol class="space-y-2.5 list-decimal list-inside"><template x-for="t in P[plat].todo"><li class="text-sm leading-relaxed" x-text="t"></li></template></ol></div>
+    </div>
+    <div class="card"><div class="p-4 border-b border-line font-medium">Customer reviews on <span x-text="plat"></span></div>
+      <template x-for="r in P[plat].reviews"><div class="px-4 py-3 border-b border-line flex gap-3 text-sm"><span class="shrink-0 w-16 text-xs pt-0.5" :class="r.s==='good'?'text-emer':r.s==='bad'?'text-verm':'text-mute'" x-text="r.s==='good'?'Happy':r.s==='bad'?'Unhappy':'Mixed'"></span><span x-text="r.t"></span></div></template></div>
+  </section>
+
+  <!-- PRODUCT MANAGEMENT -->
+  <section x-show="view==='products'" class="space-y-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="card p-4"><div class="text-sm text-mute">Products</div><div class="text-2xl font-semibold mt-1" x-text="products.length"></div><div class="text-xs text-mute" x-text="products.filter(p=>p.status==='active').length+' selling now'"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Total sales</div><div class="text-2xl font-semibold mt-1" x-text="rs(sum('revenue'))"></div><div class="text-xs text-mute" x-text="fmt(sum('units_sold'))+' units sold'"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Total profit</div><div class="text-2xl font-semibold mt-1" :class="sum('total_profit')>=0?'text-emer':'text-verm'" x-text="rs(sum('total_profit'))"></div><div class="text-xs text-mute">selling price minus cost to make</div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Average profit margin</div><div class="text-2xl font-semibold mt-1" x-text="avgMargin+'%'"></div><div class="text-xs text-mute">across all products</div></div>
+    </div>
+
+    <div class="card p-4"><div class="font-medium">Add a product</div><div class="text-xs text-mute mb-3">It also appears in Inventory and Advertisement. Its selling rate is worked out automatically from platform orders.</div>
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
+        <label class="text-xs text-mute md:col-span-2">Product name<input x-model="np.name" class="w-full px-2 py-1.5 text-sm mt-1" placeholder="e.g. Cotton Kurta"></label>
+        <label class="text-xs text-mute">Category<input x-model="np.category" class="w-full px-2 py-1.5 text-sm mt-1" placeholder="General"></label>
+        <label class="text-xs text-mute">Cost to make (₹)<input type="number" min="0" x-model="np.cost" class="w-full px-2 py-1.5 text-sm mt-1"></label>
+        <label class="text-xs text-mute">Selling price (₹)<input type="number" min="1" x-model="np.price" class="w-full px-2 py-1.5 text-sm mt-1"></label>
+        <div class="text-xs text-mute pb-2" x-text="+np.price>0?'Profit per unit: '+rs(Math.round(+np.price-(+np.cost||0)))+' ('+Math.round((+np.price-(+np.cost||0))/+np.price*100)+'%)':'Profit per unit: -'"></div>
+        <label class="text-xs text-mute">Opening stock (units)<input type="number" min="0" x-model="np.stock" class="w-full px-2 py-1.5 text-sm mt-1"></label>
+        <div class="md:col-span-4"></div>
+        <button class="btn btn-p justify-center" @click="addProduct()">Add product</button></div></div>
+
+    <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Your products and their stats</div><div class="text-xs text-mute">Edit cost or selling price directly in the table. Stats update straight away.</div></div>
+      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Cost to make (₹)</th><th>Selling price (₹)</th><th>Profit per unit</th><th>Margin</th><th>Units sold</th><th>Sales</th><th>Total profit</th><th>Status</th><th></th></tr></thead><tbody>
+        <template x-for="p in products" :key="p.sku"><tr>
+          <td><div x-text="p.name"></div><div class="text-xs text-mute" x-text="p.sku+' · '+(p.category||'General')"></div></td>
+          <td><input type="number" min="0" :value="p.cost" @change="update(p,{cost:+$event.target.value})" class="w-24 px-2 py-1 text-sm" :aria-label="'Cost to make '+p.name"></td>
+          <td><input type="number" min="1" :value="p.price" @change="update(p,{price:+$event.target.value})" class="w-24 px-2 py-1 text-sm" :aria-label="'Selling price of '+p.name"></td>
+          <td :class="ps(p).unit<0?'text-verm':''" x-text="rs(ps(p).unit)"></td>
+          <td :class="ps(p).margin<50?'text-amber-400':'text-emer'" x-text="ps(p).margin+'%'"></td>
+          <td x-text="fmt(p.units_sold||0)"></td>
+          <td x-text="rs(ps(p).revenue)"></td>
+          <td :class="ps(p).profit<0?'text-verm':'text-emer'" x-text="rs(ps(p).profit)"></td>
+          <td><button class="text-xs px-2 py-1 rounded border" :class="p.status==='active'?'border-emer text-emer':'border-line text-mute'" @click="update(p,{status:p.status==='active'?'paused':'active'})" x-text="p.status==='active'?'Selling':'Paused'"></button></td>
+          <td class="text-right"><button class="text-xs text-mute hover:text-verm" @click="removeProduct(p)">Remove</button></td></tr></template>
+        <tr x-show="!products.length"><td colspan="10" class="text-center text-mute">No products yet. Add one above.</td></tr>
+      </tbody></table></div></div>
+  </section>
+
+  <!-- INVENTORY MANAGEMENT -->
+  <section x-show="view==='inventory'" class="space-y-4">
+    <div class="card p-4 flex flex-wrap items-center gap-3 border-l-2" :class="orders.error?'border-l-amber-400':'border-l-emer'">
+      <span class="w-2.5 h-2.5 rounded-full" :class="orders.error?'bg-amber-400':'bg-emer animate-pulse'"></span>
+      <div class="min-w-0"><div class="font-medium text-sm" x-text="orders.error?'Order sync paused':orders.connected.length?'Orders sync automatically from your platforms':'Waiting for connected accounts'"></div>
+        <div class="text-xs text-mute" x-text="orders.error||(orders.connected.length?'Connected: '+orders.connected.join(', ')+' · checks every 30 seconds · last sync '+(orders.last||'-'):'No accounts connected yet, so no orders are coming in. Connect them in Connected Platforms.')"></div></div>
+      <div class="ml-auto flex items-center gap-3"><span class="text-xs text-amber-300 max-w-xs">Orders are simulated until accounts are connected (next step).</span>
+        <button class="btn btn-g" :disabled="orders.busy" @click="syncOrders(true)"><span x-show="orders.busy" class="spin"></span>Sync now</button></div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div class="card p-4"><div class="text-sm text-mute">Units in stock</div><div class="text-2xl font-semibold mt-1" x-text="fmt(totalUnits)"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Stock value (at cost)</div><div class="text-2xl font-semibold mt-1" x-text="rs(products.reduce((s,p)=>s+p.stock*p.cost,0))"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Orders since you opened this page</div><div class="text-2xl font-semibold mt-1" x-text="fmt(orders.session)"></div><div class="text-xs text-mute" x-text="fmt(orders.sessionUnits)+' units taken out of stock'"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Products to reorder now</div><div class="text-2xl font-semibold mt-1" :class="lowCount?'text-verm':'text-emer'" x-text="lowCount"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Runs out first</div><div class="text-lg font-semibold mt-1" x-text="firstOut?firstOut.name+' ('+(cover(firstOut)>=999?'no sales':cover(firstOut)+' days')+')':'-'"></div></div>
+    </div>
+    <div class="card p-4 border-l-2 border-l-verm"><div class="text-xs text-mute mb-1">AI prediction</div><p class="text-sm leading-relaxed" x-text="forecast?forecast.inventory_advice:'Working out the forecast…'"></p></div>
+
+    <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Stock and orders by platform</div><div class="text-xs text-mute">Stock goes down by itself when an order arrives from any platform. Selling rate is worked out from those orders.</div></div>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>In stock</th><th>Total orders by platform</th><th>Selling rate</th><th>Lasts</th><th>Status</th><th>Reorder for 3 weeks</th><th>Add stock</th></tr></thead><tbody>
+      <template x-for="p in products" :key="p.sku"><tr :class="p.status!=='active'&&'opacity-60'">
+        <td><div x-text="p.name"></div><div class="text-xs text-mute" x-text="p.status==='active'?p.sku:p.sku+' · paused, no orders'"></div></td>
+        <td class="font-medium" :class="flash[p.sku]&&'text-amber-300'" x-text="fmt(p.stock)"></td>
+        <td class="max-w-md"><div class="text-sm font-medium" x-text="fmt(orderTotal(p.sku))+' units ordered'"></div>
+          <div class="flex flex-wrap gap-1 mt-1"><template x-for="o in orderChips(p.sku)" :key="o[0]"><span class="text-xs bg-raise border border-line rounded px-1.5 py-0.5"><span class="text-mute" x-text="o[0]"></span> <span x-text="fmt(o[1])"></span></span></template>
+          <span x-show="!orderChips(p.sku).length" class="text-xs text-mute">No orders yet</span></div></td>
+        <td><span x-text="p.daily_sales+' / day'"></span><div class="text-xs text-mute">automatic</div></td>
+        <td x-text="cover(p)>=999?'No sales yet':cover(p)+' days'"></td>
+        <td class="text-sm" :class="invStatus(p)[1]" x-text="invStatus(p)[0]"></td>
+        <td x-text="reorderQty(p)?fmt(reorderQty(p))+' units':'Not needed'"></td>
+        <td><div class="flex gap-2"><input type="number" min="1" x-model="rsk[p.sku]" class="w-20 px-2 py-1 text-sm" :aria-label="'Units to add for '+p.name"><button class="btn btn-g" @click="restock(p)">Add</button></div></td></tr></template>
+      <tr x-show="!products.length"><td colspan="8" class="text-center text-mute">No products yet. Add them in Product Management.</td></tr>
+    </tbody></table></div></div>
+
+    <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Latest orders</div><div class="text-xs text-mute">The newest orders received from all platforms.</div></div>
+    <div class="overflow-x-auto max-h-96"><table class="w-full"><thead><tr><th>Time</th><th>Order</th><th>Product</th><th>Platform</th><th>Units</th><th>Amount</th></tr></thead><tbody>
+      <template x-for="o in orders.recent" :key="o.id"><tr><td class="text-xs text-mute" x-text="o.time"></td><td class="text-xs" x-text="o.id"></td><td x-text="o.product"></td><td x-text="o.platform"></td><td x-text="o.quantity"></td><td x-text="rs(o.amount)"></td></tr></template>
+      <tr x-show="!orders.recent.length"><td colspan="6" class="text-center text-mute text-sm">Waiting for the first orders…</td></tr>
+    </tbody></table></div></div>
+  </section>
+
+  <!-- ADVERTISEMENT -->
+  <section x-show="view==='ads'" class="space-y-4">
+    <div class="card p-4 flex flex-wrap items-center gap-3">
+      <div><div class="font-medium">Advertisement</div><div class="text-xs text-mute">Choose where each product is advertised, watch views and reviews on every platform, and pause or stop ads.</div></div>
+      <div class="ml-auto flex items-center gap-3"><span class="text-xs text-amber-300 max-w-xs">Numbers are simulated until your accounts are connected (next step).</span>
+        <button class="btn border border-line text-mute hover:text-white" :disabled="adsBusy" @click="simulateDay()" title="Adds one day of views, orders and reviews to every running ad">Simulate 1 day (demo)</button></div>
+    </div>
+    <div x-show="adsError" class="card p-4 text-sm text-amber-300" x-text="adsError"></div>
+
+    <div x-show="!adsError" class="card">
+      <button class="w-full p-4 flex items-center justify-between text-left" @click="post.open=!post.open;if(post.open&&!post.sku)post.sku=adSku||(products[0]&&products[0].sku)||''">
+        <div><div class="font-medium">Post a new ad</div><div class="text-xs text-mute">Pick a product, choose one or more connected platforms, write the ad and post it. Its views, clicks, orders and reviews sync automatically.</div></div>
+        <span class="btn btn-p" x-text="post.open?'Close':'Create ad'"></span></button>
+      <div x-show="post.open" class="border-t border-line p-4 grid lg:grid-cols-3 gap-5">
+        <div class="lg:col-span-2 space-y-3">
+          <label class="block text-xs text-mute">Product<select x-model="post.sku" class="block w-full mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white">
+            <template x-for="p in products" :key="p.sku"><option :value="p.sku" x-text="p.name+(p.status!=='active'?' (paused)':'')" :selected="p.sku===post.sku"></option></template></select></label>
+          <div><div class="text-xs text-mute mb-1">Ad type</div><div class="grid grid-cols-3 gap-2">
+            <template x-for="(f,k) in formats" :key="k"><button type="button" class="text-left rounded border p-2.5" :class="post.format===k?'border-verm bg-raise':'border-line hover:border-mute'" @click="setFormat(k)">
+              <div class="flex items-center gap-2 text-sm font-medium"><span x-text="k==='image'?'🖼️':k==='video'?'🎬':'📱'"></span><span x-text="f.label"></span></div>
+              <div class="text-xs text-mute mt-0.5" x-text="f.hint"></div>
+              <div class="text-[11px] text-mute mt-1" x-text="'On: '+adPlatforms.filter(pl=>(formatSupport[pl]||[]).includes(k)).join(', ')"></div></button></template></div></div>
+          <div><div class="text-xs text-mute mb-1">Post on</div><div class="flex flex-wrap gap-2">
+            <template x-for="pl in adPlatforms" :key="pl"><label class="text-sm px-2.5 py-1.5 rounded border flex items-center gap-2" :class="canPost(pl)?(post.plats.includes(pl)?'border-verm text-white bg-raise':'border-line text-mute hover:text-white cursor-pointer'):'border-line text-mute/50 cursor-not-allowed'" :title="whyNot(pl)">
+              <input type="checkbox" :value="pl" x-model="post.plats" :disabled="!canPost(pl)" class="accent-[#ff4b2b]"><span x-text="pl+(post.format==='reel'&&canPost(pl)?' '+REELNAME[pl]:'')"></span><span x-show="!canPost(pl)" class="text-xs" x-text="'('+whyNot(pl)+')'"></span></label></template></div>
+            <button x-show="adPlatforms.some(pl=>!isConn(pl))" class="text-xs text-verm underline mt-1" @click="view='ingestion'">Connect more platforms</button></div>
+          <label class="block text-xs text-mute">Headline <span class="float-right" x-text="post.headline.length+'/90'"></span><input x-model="post.headline" maxlength="90" class="w-full px-2 py-1.5 text-sm mt-1" placeholder="e.g. Festive Linen Shirts, 20% off this week"></label>
+          <label class="block text-xs text-mute">Ad text <span class="float-right" x-text="post.text.length+'/1000'"></span><textarea x-model="post.text" maxlength="1000" rows="3" class="w-full px-2 py-1.5 text-sm mt-1" placeholder="What makes this product worth buying?"></textarea></label>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label class="text-xs text-mute">Button<select x-model="post.cta" class="block w-full mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white"><template x-for="c in ['Shop now','Buy now','Order now','Learn more']" :key="c"><option x-text="c"></option></template></select></label>
+            <label class="text-xs text-mute">Daily budget per platform (₹)<input type="number" min="1" x-model="post.budget" class="w-full px-2 py-1.5 text-sm mt-1"></label>
+            <label class="text-xs text-mute">Run for<select x-model="post.days" class="block w-full mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white"><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="">Until I stop it</option></select></label>
+          </div>
+          <div class="rounded border border-dashed border-line p-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="btn border border-line text-white hover:border-mute cursor-pointer"><span x-text="post.format==='image'?'Choose picture':'Choose video'"></span>
+                <input type="file" class="hidden" :accept="post.format==='image'?'image/jpeg,image/png,image/webp':'video/mp4,video/webm,video/quicktime'" @change="pickMedia($event)"></label>
+              <div class="text-xs text-mute" x-text="post.format==='image'?'Optional. JPG, PNG or WEBP, up to 8 MB.':post.format==='reel'?'Required. Vertical 9:16 video, up to 90 seconds, MP4/WEBM/MOV, up to 100 MB.':'Required. MP4, WEBM or MOV, up to 10 minutes and 100 MB.'"></div>
+              <button x-show="post.media.url" class="text-xs text-verm underline ml-auto" @click="clearMedia()">Remove</button>
+            </div>
+            <div x-show="post.media.uploading" class="mt-2"><div class="h-2 bg-raise rounded overflow-hidden"><div class="h-full bg-emer transition-all" :style="'width:'+post.media.progress+'%'"></div></div><div class="text-xs text-mute mt-1" x-text="'Uploading… '+post.media.progress+'%'"></div></div>
+            <div x-show="post.media.url&&!post.media.uploading" class="text-xs text-emer mt-2" x-text="'✓ '+post.media.name+(post.media.seconds?' · '+Math.round(post.media.seconds)+' s':'')+(post.media.w?' · '+post.media.w+'×'+post.media.h:'')"></div>
+          </div>
+          <div class="flex items-center gap-3"><button class="btn btn-p" :disabled="post.busy||post.media.uploading" @click="submitPost()"><span x-show="post.busy" class="spin"></span><span x-text="'Post ad'+(post.plats.length?' on '+post.plats.length+' platform'+(post.plats.length>1?'s':''):'')"></span></button>
+            <span class="text-xs text-mute" x-show="post.plats.length&&+post.budget>0" x-text="'Total: '+rs(post.plats.length*post.budget)+' a day'+(post.days?' · about '+rs(post.plats.length*post.budget*post.days)+' in total':'')"></span></div>
+        </div>
+        <div><div class="text-xs text-mute mb-1" x-text="'Preview · '+formats[post.format].label"></div>
+          <template x-if="post.format!=='reel'"><div class="bg-white text-gray-900 rounded overflow-hidden shadow">
+            <div class="px-3 py-2 text-xs font-semibold flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-gray-800 text-white flex items-center justify-center text-[10px]">L&amp;C</span>Lumen &amp; Co. <span class="font-normal text-gray-500">· Sponsored</span></div>
+            <div class="bg-gray-100 flex items-center justify-center overflow-hidden" :class="post.format==='video'?'aspect-video':'aspect-square'">
+              <img x-show="post.media.preview&&post.media.type==='image'" :src="post.media.preview" alt="Ad picture preview" class="w-full h-full object-cover">
+              <video x-show="post.media.preview&&post.media.type==='video'" :src="post.media.type==='video'?post.media.preview:''" class="w-full h-full object-cover bg-black" muted autoplay loop playsinline controls></video>
+              <span x-show="!post.media.preview" class="text-gray-400 text-sm px-4 text-center" x-text="post.format==='video'?'Your video':(products.find(p=>p.sku===post.sku)||{}).name||'Your product picture'"></span></div>
+            <div class="p-3"><div class="font-semibold text-sm" x-text="post.headline||'Your headline'"></div><div class="text-xs text-gray-600 mt-1 whitespace-pre-line" x-text="post.text||'Your ad text appears here.'"></div>
+              <div class="mt-2 flex items-center justify-between"><span class="text-sm font-semibold" x-text="rs((products.find(p=>p.sku===post.sku)||{}).price||0)"></span><span class="text-xs bg-blue-600 text-white rounded px-3 py-1" x-text="post.cta"></span></div></div>
+          </div></template>
+          <template x-if="post.format==='reel'"><div class="mx-auto w-56 aspect-[9/16] rounded-[1.6rem] border-4 border-gray-700 bg-black relative overflow-hidden shadow-lg">
+            <video x-show="post.media.preview" :src="post.media.preview" class="absolute inset-0 w-full h-full object-cover" muted autoplay loop playsinline></video>
+            <div x-show="!post.media.preview" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Your vertical video</div>
+            <div class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent text-white">
+              <div class="text-[11px] font-semibold">Lumen &amp; Co. · Sponsored</div><div class="text-xs font-semibold mt-0.5" x-text="post.headline||'Your headline'"></div>
+              <div class="text-[10px] opacity-80 line-clamp-2" x-text="post.text"></div><div class="mt-2 text-center text-xs bg-white text-black rounded py-1 font-semibold" x-text="post.cta"></div></div>
+          </div></template>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" x-show="!adsError">
+      <div class="card p-4"><div class="text-sm text-mute">Ads running</div><div class="text-2xl font-semibold mt-1" x-text="allAds.filter(a=>a.status==='active').length"></div><div class="text-xs text-mute" x-text="allAds.filter(a=>a.status==='paused').length+' paused'"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Daily budget (running ads)</div><div class="text-2xl font-semibold mt-1" x-text="rs(allAds.filter(a=>a.status==='active').reduce((s,a)=>s+a.daily_budget,0))"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Total views</div><div class="text-2xl font-semibold mt-1" x-text="fmt(allAds.reduce((s,a)=>s+a.views,0))"></div><div class="text-xs text-mute" x-text="fmt(allAds.reduce((s,a)=>s+a.orders,0))+' orders from ads'"></div></div>
+      <div class="card p-4"><div class="text-sm text-mute">Average rating</div><div class="text-2xl font-semibold mt-1" x-text="avgAdRating?'★ '+avgAdRating:'-'"></div><div class="text-xs text-mute" x-text="fmt(allAds.reduce((s,a)=>s+a.review_count,0))+' reviews'"></div></div>
+    </div>
+
+    <div class="card p-4" x-show="!adsError">
+      <div class="text-xs text-mute mb-2">Pick a product</div>
+      <div class="flex flex-wrap gap-2"><template x-for="p in adsData" :key="p.sku"><button class="text-sm px-3 py-1.5 rounded border" :class="adSku===p.sku?'border-verm text-white bg-raise':'border-line text-mute hover:text-white'" @click="adSku=p.sku;openRev=''">
+        <span x-text="p.name"></span> <span class="text-xs text-emer" x-text="p.ads.filter(a=>a.status==='active').length?'· '+p.ads.filter(a=>a.status==='active').length+' running':''"></span></button></template>
+        <span x-show="!adsData.length" class="text-sm text-mute">No products yet. Add one in Product Management.</span></div>
+    </div>
+
+    <template x-if="adProduct">
+    <div class="space-y-3">
+      <div x-show="adProduct.status!=='active'" class="card p-3 text-sm text-amber-300 border-l-2 border-l-amber-400">This product is paused in Product Management, so its ads will not run until you set it back to Selling.</div>
+      <div x-show="adProduct.status==='active'&&adProduct.stock<=0" class="card p-3 text-sm text-verm border-l-2 border-l-verm">Out of stock. Pause its ads or add stock, otherwise you pay for views you cannot sell to.</div>
+      <div x-show="adProduct.status==='active'&&adProduct.stock>0&&adProduct.days_of_cover<7" class="card p-3 text-sm text-amber-300 border-l-2 border-l-amber-400" x-text="'Only '+adProduct.days_of_cover+' days of stock left. Think about lowering ad budgets until you restock.'"></div>
+      <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <template x-for="pl in adPlatforms" :key="pl"><div class="card p-4 flex flex-col" :class="adOf(pl)&&adOf(pl).status==='active'&&'border-emer/50'">
+          <div class="flex items-center justify-between"><div class="font-medium" x-text="pl"></div>
+            <span class="text-xs px-2 py-0.5 rounded border" :class="adBadge(adOf(pl))[1]" x-text="adBadge(adOf(pl))[0]"></span></div>
+
+          <template x-if="adOf(pl)"><div class="flex-1 flex flex-col">
+            <div x-show="!isConn(pl)" class="mt-2 text-xs text-amber-300">Account not connected, so these numbers are not syncing. <button class="underline" @click="view='ingestion'">Connect</button></div>
+            <div x-show="adOf(pl).post" class="mt-2 text-xs text-mute truncate" x-text="adOf(pl).post?'Current ad ('+adOf(pl).post.format_label+'): “'+adOf(pl).post.headline+'”':''"></div>
+            <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Views</div><div class="font-semibold text-sm" x-text="fmt(adOf(pl).views)"></div></div>
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Clicks</div><div class="font-semibold text-sm" x-text="fmt(adOf(pl).clicks)"></div></div>
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Orders</div><div class="font-semibold text-sm" x-text="fmt(adOf(pl).orders)"></div></div>
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Ad spend</div><div class="font-semibold text-sm" x-text="rs(adOf(pl).spend)"></div></div>
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Profit after ads</div><div class="font-semibold text-sm" :class="adOf(pl).profit_after_ads<0?'text-verm':'text-emer'" x-text="rs(adOf(pl).profit_after_ads)"></div></div>
+              <div class="bg-raise rounded p-2"><div class="text-xs text-mute">Reviews</div><div class="font-semibold text-sm" x-text="adOf(pl).avg_rating?'★ '+adOf(pl).avg_rating+' ('+fmt(adOf(pl).review_count)+')':'None yet'"></div></div>
+            </div>
+            <label class="text-xs text-mute mt-3 flex items-center gap-2">Daily budget (₹)<input type="number" min="1" :value="adOf(pl).daily_budget" @change="changeAd(pl,{daily_budget:+$event.target.value})" class="w-24 px-2 py-1 text-sm" :aria-label="'Daily budget on '+pl"></label>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button x-show="adOf(pl).status==='active'" class="btn border border-amber-400 text-amber-300" @click="changeAd(pl,{status:'paused'})">Pause</button>
+              <button x-show="adOf(pl).status==='paused'" class="btn btn-g" @click="changeAd(pl,{status:'active'})">Resume</button>
+              <button x-show="adOf(pl).status!=='stopped'" class="btn border border-verm text-verm" @click="confirm('Stop advertising '+adProduct.name+' on '+pl+'? Its stats are kept.')&&changeAd(pl,{status:'stopped'})">Stop advertising</button>
+              <button x-show="adOf(pl).status==='stopped'" class="btn btn-g" @click="startAd(pl,adOf(pl).daily_budget)">Start again</button>
+              <button class="btn text-mute underline ml-auto" @click="openRev=openRev===pl?'':pl" x-text="openRev===pl?'Hide reviews':'See reviews'"></button>
+            </div>
+            <div x-show="openRev===pl" class="mt-3 space-y-2">
+              <template x-for="(rv,i) in adOf(pl).recent_reviews" :key="i"><div class="bg-raise rounded p-2 text-sm"><span class="text-amber-300" x-text="'★'.repeat(rv.stars)+'☆'.repeat(5-rv.stars)"></span><span class="text-xs text-mute ml-2" x-text="rv.date"></span><div class="text-mute mt-0.5" x-text="rv.text"></div></div></template>
+              <div x-show="!adOf(pl).recent_reviews.length" class="text-xs text-mute">No written reviews yet.</div>
+            </div>
+          </div></template>
+
+          <template x-if="!adOf(pl)&&!isConn(pl)"><div class="mt-3 flex-1 flex flex-col justify-end">
+            <p class="text-sm text-mute mb-3">Connect your <span x-text="pl"></span> account to advertise here.</p>
+            <button class="btn border border-line text-mute hover:text-white self-start" @click="view='ingestion'">Go to Connected Platforms</button>
+          </div></template>
+          <template x-if="!adOf(pl)&&isConn(pl)"><div class="mt-3 flex-1 flex flex-col justify-end">
+            <p class="text-sm text-mute mb-3">Not advertised here yet.</p>
+            <div class="flex gap-2 items-center"><label class="text-xs text-mute">Daily budget (₹)<input type="number" min="1" x-model="adBudget[pl]" placeholder="500" class="w-24 px-2 py-1 text-sm ml-2"></label>
+              <button class="btn btn-p ml-auto" @click="startAd(pl,+adBudget[pl]||500)">Start advertising</button></div>
+          </div></template>
+        </div></template>
+      </div>
+    </div>
+    </template>
+
+    <div class="card" x-show="adsData.length">
+      <div class="p-4 border-b border-line"><div class="font-medium">All products at a glance</div><div class="text-xs text-mute">Views and rating on each platform. Click a row to manage that product.</div></div>
+      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><template x-for="pl in adPlatforms" :key="pl"><th x-text="pl"></th></template></tr></thead><tbody>
+        <template x-for="p in adsData" :key="p.sku"><tr class="cursor-pointer hover:bg-raise" @click="adSku=p.sku;openRev='';$el.closest('main').scrollTo({top:0,behavior:'smooth'})">
+          <td x-text="p.name"></td>
+          <template x-for="pl in adPlatforms" :key="pl"><td class="text-xs"><template x-if="p.ads.find(a=>a.platform===pl)"><div>
+            <span :class="adBadge(p.ads.find(a=>a.platform===pl))[2]" x-text="'● '+adBadge(p.ads.find(a=>a.platform===pl))[0]"></span>
+            <div class="text-mute" x-text="fmt(p.ads.find(a=>a.platform===pl).views)+' views'+(p.ads.find(a=>a.platform===pl).avg_rating?' · ★'+p.ads.find(a=>a.platform===pl).avg_rating:'')"></div></div></template>
+            <span x-show="!p.ads.find(a=>a.platform===pl)" class="text-mute">-</span></td></template></tr></template>
+      </tbody></table></div>
+    </div>
+
+    <div class="card" x-show="!adsError">
+      <div class="p-4 border-b border-line flex flex-wrap items-center gap-3"><div class="mr-auto"><div class="font-medium">Posted ads</div><div class="text-xs text-mute">Every ad you posted, with its own synced numbers.</div></div>
+        <select x-model="postsFilter" class="bg-ink border border-line rounded px-2 py-1.5 text-sm text-white"><option value="all">All products</option><template x-for="p in products" :key="p.sku"><option :value="p.sku" x-text="p.name"></option></template></select></div>
+      <div class="divide-y divide-line">
+        <template x-for="x in posts.filter(x=>postsFilter==='all'||x.sku===postsFilter)" :key="x.id"><div class="p-4 flex flex-wrap gap-4 items-start">
+          <div class="rounded bg-raise overflow-hidden shrink-0 flex items-center justify-center text-xs text-mute relative" :class="x.format==='reel'?'w-12 h-20':'w-20 h-14'">
+            <img x-show="x.media_type==='image'" :src="x.media_type==='image'?mediaSrc(x.media_url):''" alt="" class="w-full h-full object-cover">
+            <video x-show="x.media_type==='video'" :src="x.media_type==='video'?mediaSrc(x.media_url)+'#t=0.5':''" class="w-full h-full object-cover" muted preload="metadata" playsinline @mouseenter="$el.play()" @mouseleave="$el.pause()"></video>
+            <span x-show="!x.media_url">No media</span>
+            <span x-show="x.media_type==='video'" class="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white rounded px-1">▶</span></div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2"><span class="font-medium" x-text="x.headline"></span><span class="text-xs px-2 py-0.5 rounded bg-raise text-mute" x-text="x.format_label"></span><span class="text-xs px-2 py-0.5 rounded border" :class="POSTBADGE[x.status]" x-text="x.status==='live'?'Live':x.status[0].toUpperCase()+x.status.slice(1)"></span></div>
+            <div class="text-xs text-mute mt-0.5" x-text="x.product+' · '+x.platform+' · posted '+x.posted_at+' · '+rs(x.daily_budget)+'/day'+(x.days_left!=null&&['live','paused'].includes(x.status)?' · '+x.days_left+' days left':'')+' · ID '+x.id"></div>
+            <div class="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm">
+              <span><span class="text-mute">Views</span> <span x-text="fmt(x.views)"></span></span><span><span class="text-mute">Clicks</span> <span x-text="fmt(x.clicks)+' ('+x.click_rate_pct+'%)'"></span></span>
+              <span><span class="text-mute">Orders</span> <span x-text="fmt(x.orders)"></span></span><span><span class="text-mute">Sales</span> <span x-text="rs(x.sales)"></span></span>
+              <span><span class="text-mute">Spent</span> <span x-text="rs(x.spend)"></span></span>
+              <span x-show="x.format!=='image'"><span class="text-mute">Watched fully</span> <span x-text="fmt(x.completed_views)"></span></span>
+              <span x-show="x.format!=='image'"><span class="text-mute">Avg watched</span> <span x-text="x.avg_watch_pct+'%'"></span></span><span><span class="text-mute">Reviews</span> <span x-text="x.avg_rating?'★ '+x.avg_rating+' ('+x.reviews+')':'none yet'"></span></span></div>
+          </div>
+          <div class="flex gap-2 shrink-0" x-show="['live','paused'].includes(x.status)">
+            <button x-show="x.status==='live'" class="btn border border-amber-400 text-amber-300" @click="changeAd(x.platform,{status:'paused'},x.sku)">Pause</button>
+            <button x-show="x.status==='paused'" class="btn btn-g" @click="changeAd(x.platform,{status:'active'},x.sku)">Resume</button>
+            <button class="btn border border-verm text-verm" @click="confirm('Stop this ad on '+x.platform+'?')&&changeAd(x.platform,{status:'stopped'},x.sku)">Stop</button></div>
+        </div></template>
+        <div x-show="!posts.filter(x=>postsFilter==='all'||x.sku===postsFilter).length" class="p-4 text-sm text-mute">No ads posted yet. Use “Post a new ad” above.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONNECTED PLATFORMS -->
+  <section x-show="view==='ingestion'" class="space-y-4">
+    <div class="card p-4 flex flex-wrap items-center gap-3">
+      <div class="min-w-0"><div class="font-medium">Connect your accounts</div>
+        <div class="text-xs text-mute max-w-2xl">Link each social media and selling account once. After that, ads you post, their views, clicks and reviews, and every order sync here automatically. Only connected platforms sync.</div></div>
+      <div class="ml-auto flex items-center gap-2"><span class="text-xs px-2 py-1 rounded border" :class="conn.live?'border-emer text-emer':'border-amber-400 text-amber-300'" x-text="conn.live?'Live API mode':'Demo mode: numbers are simulated'"></span>
+        <button class="btn border border-line text-mute hover:text-white" :disabled="!!conn.busy" @click="connectAllDemo()">Connect all with demo accounts</button></div>
+    </div>
+    <div class="card p-3 text-xs text-mute flex gap-2 items-start"><span class="text-emer">🔒</span><span>Keys and tokens are encrypted on your server before they are saved, and are never shown again (only the last 4 characters). Disconnecting deletes them. Do not share or upload <b>connections.json</b>, <b>.nexus_secret.key</b> or <b>.env</b>.</span></div>
+    <div x-show="conn.error" class="card p-3 text-sm text-amber-300" x-text="conn.error"></div>
+
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <template x-for="c in conn.list" :key="c.platform"><div class="card p-4 flex flex-col" :class="c.connected&&'border-emer/50'">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded flex items-center justify-center font-semibold text-white shrink-0" :style="'background:'+(PCOLOR[c.platform]||'#27303b')" x-text="c.platform[0]"></div>
+          <div class="min-w-0 flex-1"><div class="font-medium" x-text="c.platform"></div><div class="text-xs text-mute" x-text="c.kind+' · '+c.api"></div></div>
+          <span class="text-xs px-2 py-0.5 rounded border shrink-0" :class="c.connected?(c.mode==='live'?'border-emer text-emer':'border-sky-400 text-sky-300'):'border-line text-mute'" x-text="c.connected?(c.mode==='live'?'Connected · live':'Connected · demo'):'Not connected'"></span>
+        </div>
+
+        <template x-if="c.connected"><div class="mt-3 text-sm space-y-1 flex-1">
+          <div><span class="text-mute">Account:</span> <span x-text="c.account_name"></span></div>
+          <template x-for="f in c.fields" :key="f.key"><div class="text-xs"><span class="text-mute" x-text="f.label+': '"></span><span class="break-all" x-text="f.secret?(c.masked[f.key]||'••••'):(c.public[f.key]||'-')"></span></div></template>
+          <div class="text-xs text-mute">Connected <span x-text="c.connected_at"></span> · last sync <span x-text="c.last_sync||'waiting for first sync'"></span></div>
+          <div x-show="c.last_test" class="text-xs" :class="(c.last_test||'').startsWith('OK')?'text-emer':'text-verm'" x-text="c.last_test"></div>
+          <div class="flex gap-2 pt-2"><button class="btn btn-g" :disabled="conn.busy===c.platform" @click="testConn(c.platform)">Test connection</button>
+            <button class="btn border border-verm text-verm ml-auto" @click="disconnect(c.platform)">Disconnect</button></div>
+        </div></template>
+
+        <template x-if="!c.connected"><div class="mt-3 flex-1 flex flex-col">
+          <div x-show="conn.open!==c.platform" class="mt-auto flex gap-2"><button class="btn btn-p" @click="openConnect(c)">Connect account</button>
+            <button class="btn border border-line text-mute hover:text-white" :disabled="conn.busy===c.platform" @click="connectDemo(c.platform)">Use demo account</button></div>
+          <div x-show="conn.open===c.platform" class="space-y-2">
+            <label class="block text-xs text-mute">Account name (for you)<input x-model="conn.form.account_name" class="w-full px-2 py-1.5 text-sm mt-1" placeholder="e.g. @lumenco"></label>
+            <template x-for="f in c.fields" :key="f.key"><label class="block text-xs text-mute"><span x-text="f.label"></span>
+              <input :type="f.secret?'password':'text'" x-model="conn.form.values[f.key]" autocomplete="off" class="w-full px-2 py-1.5 text-sm mt-1"></label></template>
+            <div class="text-xs text-mute">Find these in the platform's business or developer settings.</div>
+            <div class="flex gap-2 pt-1"><button class="btn btn-p" :disabled="conn.busy===c.platform" @click="connectPlatform(c.platform)"><span x-show="conn.busy===c.platform" class="spin"></span>Connect</button>
+              <button class="btn text-mute" @click="conn.open=''">Cancel</button></div>
+          </div>
+        </div></template>
+      </div></template>
+    </div>
+  </section>
+
+  <!-- PROBLEMS TO WATCH -->
+  <section x-show="view==='causal'" class="grid xl:grid-cols-2 gap-4">
+    <div class="card p-5 border-t-2 border-t-sky-500/70 xl:col-span-2">
+      <div class="flex flex-wrap items-start gap-3 mb-3"><div class="mr-auto"><div class="text-base font-semibold text-white">✨ AI suggestions for problems</div><div class="text-sm text-mute">What is hurting sales or wasting money right now, and how to fix it</div></div>
+        <span class="text-xs text-mute self-center" x-text="sugg.causal.source==='gemini'?'From Gemini AI':sugg.causal.source==='rules'?'Worked out from your numbers (live AI off)':''"></span>
+        <button class="btn border border-line text-mute hover:text-white" :disabled="sugg.causal.loading" @click="loadSugg('causal')"><span x-show="sugg.causal.loading" class="spin"></span>Refresh</button></div>
+      <div x-show="sugg.causal.loading&&!sugg.causal.items.length" class="space-y-2"><div class="sk h-16"></div><div class="sk h-16"></div></div>
+      <div x-show="sugg.causal.error" class="text-sm text-amber-300" x-text="sugg.causal.error"></div>
+      <div class="grid md:grid-cols-2 gap-3">
+        <template x-for="x in visibleSugg('causal')" :key="suggKey(x)"><div class="rounded-lg bg-raise p-4 border-l-4" :class="x.priority==='high'?'border-l-verm':x.priority==='medium'?'border-l-amber-400':'border-l-sky-400'">
+          <div class="flex items-center gap-2"><span class="text-[11px] font-bold uppercase px-1.5 py-0.5 rounded" :class="x.priority==='high'?'bg-verm/20 text-red-300':x.priority==='medium'?'bg-amber-400/15 text-amber-300':'bg-sky-400/15 text-sky-300'" x-text="x.priority==='high'?'Do first':x.priority==='medium'?'Soon':'When you can'"></span>
+            <span class="text-[15px] font-semibold text-white" x-text="x.title"></span></div>
+          <p class="text-sm text-gray-300 mt-1.5 leading-relaxed" x-text="x.why"></p>
+          <p class="text-sm text-white mt-1 leading-relaxed"><span class="text-mute">What to do: </span><span x-text="x.action"></span></p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button x-show="suggBtn(x)" class="btn btn-p" @click="doSugg(x)" x-text="suggBtn(x)"></button>
+            <button class="btn border border-line text-mute hover:text-white" @click="dismiss('s:'+suggKey(x),x.title)">Mark done</button></div>
+        </div></template>
+      </div>
+      <div x-show="!sugg.causal.loading&&!visibleSugg('causal').length&&!sugg.causal.error" class="text-sm text-mute">✅ No suggestions right now.</div>
+    </div>
+
+    <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Ads people are tired of seeing</div><div class="text-xs text-mute">Same ad shown too often, so fewer people click</div></div>
+      <table class="w-full"><thead><tr><th>Ad</th><th>Times seen per person</th><th>Clicks change</th><th>How tired</th></tr></thead><tbody>
+      <template x-for="c in fatigue" :key="c.n"><tr><td x-text="c.n"></td><td x-text="c.f"></td><td class="text-verm" x-text="c.d"></td><td class="w-28"><div class="h-1.5 bg-raise rounded"><div class="h-1.5 rounded" :class="c.s>70?'bg-verm':c.s>40?'bg-amber-400':'bg-emer'" :style="'width:'+c.s+'%'"></div></div></td></tr></template></tbody></table></div>
+    <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Low stock warning</div><div class="text-xs text-mute">Ads on items that may run out are paused or capped</div></div>
+      <table class="w-full"><thead><tr><th>Product</th><th>Stock lasts</th><th>Daily ad spend</th><th>Status</th></tr></thead><tbody>
+      <template x-for="s in stock" :key="s.sku"><tr><td x-text="s.sku"></td><td :class="s.d<7?'text-verm':''" x-text="s.d+' days'"></td><td x-text="s.sp"></td><td class="text-xs" :class="s.g?'text-verm':'text-emer'" x-text="s.g?'Ads limited':'Fine'"></td></tr></template></tbody></table></div>
+  </section>
+
+  <!-- PROFIT CHECK -->
+  <section x-show="view==='poas'" class="space-y-4">
+    <div class="card p-5 border-t-2 border-t-sky-500/70 ">
+      <div class="flex flex-wrap items-start gap-3 mb-3"><div class="mr-auto"><div class="text-base font-semibold text-white">✨ AI suggestions for profit</div><div class="text-sm text-mute">Where your ad money earns the most, and where it is wasted</div></div>
+        <span class="text-xs text-mute self-center" x-text="sugg.poas.source==='gemini'?'From Gemini AI':sugg.poas.source==='rules'?'Worked out from your numbers (live AI off)':''"></span>
+        <button class="btn border border-line text-mute hover:text-white" :disabled="sugg.poas.loading" @click="loadSugg('poas')"><span x-show="sugg.poas.loading" class="spin"></span>Refresh</button></div>
+      <div x-show="sugg.poas.loading&&!sugg.poas.items.length" class="space-y-2"><div class="sk h-16"></div><div class="sk h-16"></div></div>
+      <div x-show="sugg.poas.error" class="text-sm text-amber-300" x-text="sugg.poas.error"></div>
+      <div class="grid md:grid-cols-2 gap-3">
+        <template x-for="x in visibleSugg('poas')" :key="suggKey(x)"><div class="rounded-lg bg-raise p-4 border-l-4" :class="x.priority==='high'?'border-l-verm':x.priority==='medium'?'border-l-amber-400':'border-l-sky-400'">
+          <div class="flex items-center gap-2"><span class="text-[11px] font-bold uppercase px-1.5 py-0.5 rounded" :class="x.priority==='high'?'bg-verm/20 text-red-300':x.priority==='medium'?'bg-amber-400/15 text-amber-300':'bg-sky-400/15 text-sky-300'" x-text="x.priority==='high'?'Do first':x.priority==='medium'?'Soon':'When you can'"></span>
+            <span class="text-[15px] font-semibold text-white" x-text="x.title"></span></div>
+          <p class="text-sm text-gray-300 mt-1.5 leading-relaxed" x-text="x.why"></p>
+          <p class="text-sm text-white mt-1 leading-relaxed"><span class="text-mute">What to do: </span><span x-text="x.action"></span></p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button x-show="suggBtn(x)" class="btn btn-p" @click="doSugg(x)" x-text="suggBtn(x)"></button>
+            <button class="btn border border-line text-mute hover:text-white" @click="dismiss('s:'+suggKey(x),x.title)">Mark done</button></div>
+        </div></template>
+      </div>
+      <div x-show="!sugg.poas.loading&&!visibleSugg('poas').length&&!sugg.poas.error" class="text-sm text-mute">✅ No suggestions right now.</div>
+    </div>
+    <div class="card"><div class="p-4 border-b border-line"><div class="text-base font-semibold text-white">Profit for every ₹1 spent on ads</div><div class="text-sm text-mute">Each product's ad on each platform, from your synced numbers. Profit per ₹1 = (orders × (price − cost)) ÷ ad spend. Above 1.00 means the ad pays for itself.</div></div>
+    <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Platform</th><th>Status</th><th>Ad spend</th><th>Orders</th><th>Profit from those orders</th><th>Profit per ₹1</th><th>Advice</th></tr></thead><tbody>
+    <template x-for="r in profitRows" :key="r.sku+r.platform"><tr>
+      <td class="text-white" x-text="r.product"></td><td class="text-mute" x-text="r.platform"></td>
+      <td><span class="text-xs" :class="adBadge(r)[2]" x-text="adBadge(r)[0]"></span></td>
+      <td x-text="rs(r.spend)"></td><td x-text="fmt(r.orders)"></td><td x-text="rs(r.gross)"></td>
+      <td class="font-semibold" :class="r.ppr==null?'text-mute':r.ppr>=1?'text-emer':'text-verm'" x-text="r.ppr==null?'-':r.ppr.toFixed(2)"></td>
+      <td class="text-sm" x-text="r.ppr==null?'No spend yet':r.ppr>=1.5?'Earns well: can spend more':r.ppr>=1?'Pays for itself: keep':'Loses money: lower or pause'"></td></tr></template>
+    <tr x-show="!profitRows.length"><td colspan="8" class="text-center text-mute">No ad results yet. Open the Advertisement page or post an ad.</td></tr>
+    </tbody></table></div></div>
+  </section>
+
+  <!-- THINGS TO DO -->
+  <section x-show="view==='actions'" class="space-y-5 max-w-[1200px]">
+    <div class="flex flex-wrap items-end gap-3"><div class="mr-auto"><h1 class="text-2xl font-semibold text-white">Things to do</h1>
+      <p class="text-sm text-mute mt-1">The AI checks your live stock, orders and ads and lists what needs doing. Nothing changes until you press a button.</p></div></div>
+
+    <div class="card p-5">
+      <div class="flex items-center gap-2 mb-3"><div class="text-base font-semibold text-white">Needs attention now</div><span class="text-xs px-2 py-0.5 rounded-full bg-raise text-mute" x-text="openTasks.length"></span></div>
+      <div class="space-y-3">
+        <template x-for="n in openTasks" :key="n.key"><div class="rounded-lg border p-4 flex flex-wrap gap-4 items-start" :class="SEV[n.sev].box">
+          <span class="text-xl leading-none" x-text="SEV[n.sev].icon"></span>
+          <div class="flex-1 min-w-[220px]"><div class="flex items-center gap-2"><span class="text-[11px] font-bold uppercase" :class="SEV[n.sev].text" x-text="SEV[n.sev].label"></span><span class="text-xs text-mute" x-text="'since '+n.time"></span></div>
+            <div class="text-[15px] font-semibold text-white mt-0.5" x-text="n.title"></div><div class="text-sm text-gray-300 mt-1 leading-relaxed" x-text="n.msg"></div></div>
+          <div class="flex flex-wrap gap-2 self-center">
+            <button x-show="taskBtn(n)" class="btn btn-p" @click="doTask(n)" x-text="taskBtn(n)"></button>
+            <button x-show="n.go" class="btn border border-line text-white" @click="openNote(n)">Show me</button>
+            <button class="btn border border-line text-mute hover:text-white" @click="dismiss(n.key,n.title)">Mark done</button></div>
+        </div></template>
+        <div x-show="!openTasks.length" class="text-sm text-mute">✅ Nothing urgent. Stock, ads and ratings look fine.</div>
+      </div>
+    </div>
+
+    <div class="card p-5 border-t-2 border-t-sky-500/70 ">
+      <div class="flex flex-wrap items-start gap-3 mb-3"><div class="mr-auto"><div class="text-base font-semibold text-white">✨ AI suggestions</div><div class="text-sm text-mute">Ideas to grow profit and fix problems, based on your latest numbers</div></div>
+        <span class="text-xs text-mute self-center" x-text="sugg.actions.source==='gemini'?'From Gemini AI':sugg.actions.source==='rules'?'Worked out from your numbers (live AI off)':''"></span>
+        <button class="btn border border-line text-mute hover:text-white" :disabled="sugg.actions.loading" @click="loadSugg('actions')"><span x-show="sugg.actions.loading" class="spin"></span>Refresh</button></div>
+      <div x-show="sugg.actions.loading&&!sugg.actions.items.length" class="space-y-2"><div class="sk h-16"></div><div class="sk h-16"></div></div>
+      <div x-show="sugg.actions.error" class="text-sm text-amber-300" x-text="sugg.actions.error"></div>
+      <div class="grid md:grid-cols-2 gap-3">
+        <template x-for="x in visibleSugg('actions')" :key="suggKey(x)"><div class="rounded-lg bg-raise p-4 border-l-4" :class="x.priority==='high'?'border-l-verm':x.priority==='medium'?'border-l-amber-400':'border-l-sky-400'">
+          <div class="flex items-center gap-2"><span class="text-[11px] font-bold uppercase px-1.5 py-0.5 rounded" :class="x.priority==='high'?'bg-verm/20 text-red-300':x.priority==='medium'?'bg-amber-400/15 text-amber-300':'bg-sky-400/15 text-sky-300'" x-text="x.priority==='high'?'Do first':x.priority==='medium'?'Soon':'When you can'"></span>
+            <span class="text-[15px] font-semibold text-white" x-text="x.title"></span></div>
+          <p class="text-sm text-gray-300 mt-1.5 leading-relaxed" x-text="x.why"></p>
+          <p class="text-sm text-white mt-1 leading-relaxed"><span class="text-mute">What to do: </span><span x-text="x.action"></span></p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button x-show="suggBtn(x)" class="btn btn-p" @click="doSugg(x)" x-text="suggBtn(x)"></button>
+            <button class="btn border border-line text-mute hover:text-white" @click="dismiss('s:'+suggKey(x),x.title)">Mark done</button></div>
+        </div></template>
+      </div>
+      <div x-show="!sugg.actions.loading&&!visibleSugg('actions').length&&!sugg.actions.error" class="text-sm text-mute">✅ No suggestions right now.</div>
+    </div>
+
+    <div class="card p-5" x-show="doneLog.length"><div class="text-base font-semibold text-white mb-2">Done today</div>
+      <template x-for="(d,i) in doneLog" :key="i"><div class="text-sm text-mute py-1 flex gap-2"><span class="text-emer">✓</span><span x-text="d.title"></span><span class="ml-auto text-xs" x-text="d.time"></span></div></template></div>
+  </section>
+  <!-- TIMELINE & 24/7 LOG -->
+  <section x-show="view==='timeline'" class="card">
+    <div class="p-4 border-b border-line flex flex-wrap items-end gap-4">
+      <div class="mr-auto"><div class="font-medium">Month-wise sales, views and reviews</div><div class="text-xs text-mute">Pick a product and a platform. Last 6 months; the current month counts days so far.</div></div>
+      <label class="text-xs text-mute">Product<select x-model="mon.sku" @change="loadMonthly()" class="block mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white min-w-40">
+        <option value="all">All products</option><template x-for="p in products" :key="p.sku"><option :value="p.sku" x-text="p.name"></option></template></select></label>
+      <label class="text-xs text-mute">Platform<select x-model="mon.plat" @change="loadMonthly()" class="block mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white min-w-40">
+        <option value="all">All platforms</option><template x-for="pl in salesChannels" :key="pl"><option :value="pl" x-text="pl==='Website'?'Website (Shopify store)':pl"></option></template></select></label>
+    </div>
+    <div x-show="mon.error" class="mx-4 mt-4 p-3 rounded border border-amber-500/40 bg-amber-500/10 text-sm text-amber-300" x-text="mon.error"></div>
+    <div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+        <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Units sold (6 months)</div><div class="text-xl font-semibold" x-text="fmt(monTotal('units'))"></div></div>
+        <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Sales</div><div class="text-xl font-semibold" x-text="rs(monTotal('sales'))"></div></div>
+        <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Views</div><div class="text-xl font-semibold" x-text="fmt(monTotal('views'))"></div></div>
+        <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Reviews</div><div class="text-xl font-semibold" x-text="fmt(monTotal('reviews'))+(monRating?' · ★ '+monRating:'')"></div></div>
+      </div>
+      <div class="px-4"><div class="w-full overflow-x-auto" x-html="mon.svg" role="img" aria-label="Month-wise units sold, views and reviews"></div></div>
+      <div class="overflow-x-auto mt-4"><table class="w-full"><thead><tr><th>Month</th><th>Units sold</th><th>Sales</th><th>Views</th><th>Clicks</th><th>Ad spend</th><th>Reviews</th><th>Avg rating</th></tr></thead><tbody>
+        <template x-for="r in mon.rows" :key="r.month"><tr><td x-text="r.label"></td><td x-text="fmt(r.units)"></td><td x-text="rs(r.sales)"></td><td x-text="fmt(r.views)"></td><td x-text="r.clicks?fmt(r.clicks):'-'"></td><td x-text="r.ad_spend?rs(r.ad_spend):'-'"></td><td x-text="fmt(r.reviews)"></td><td x-text="r.avg_rating?'★ '+r.avg_rating:'-'"></td></tr></template>
+      </tbody></table></div>
+    </div>
+  </section>
+  <section x-show="view==='timeline'" class="grid xl:grid-cols-2 gap-4">
+    <div class="card p-5"><div class="font-medium">24/7 monitoring alerts</div><div class="text-xs text-mute mb-4">Problems and wins the system spotted for you</div>
+      <div class="space-y-3"><template x-for="al in alerts" :key="al.id"><div class="bg-raise p-3.5 rounded border-l-4" :class="al.severity==='critical'?'border-l-verm':al.severity==='warning'?'border-l-amber-400':'border-l-emer'">
+        <div class="flex justify-between gap-3"><span class="font-medium text-sm text-white" x-text="al.title"></span><span class="text-xs text-mute shrink-0" x-text="al.timestamp"></span></div>
+        <p class="text-sm text-mute mt-1 leading-relaxed" x-text="al.message"></p></div></template></div></div>
+    <div class="card p-5"><div class="font-medium">System timeline</div><div class="text-xs text-mute mb-4">What the system did recently, oldest first</div>
+      <div class="border-l border-line ml-1 pl-5 space-y-5"><template x-for="(ev,i) in timeline" :key="i"><div class="relative">
+        <span class="absolute -left-[26px] top-1 w-2.5 h-2.5 rounded-full" :class="ev.type==='warning'?'bg-amber-400':ev.type==='success'?'bg-emer':'bg-verm'"></span>
+        <div class="text-xs text-mute" x-text="ev.time"></div><div class="text-sm font-medium text-white mt-0.5" x-text="ev.title"></div><div class="text-sm text-mute leading-relaxed" x-text="ev.desc"></div></div></template></div></div>
+  </section>
+  </main>
+</div>
+
+<!-- AI ALERT POP-UP: small, only for urgent problems, closes by itself -->
+<div x-show="popup" x-transition class="fixed top-16 right-5 z-[60] w-80 max-w-[calc(100vw-2rem)]" role="alert" aria-live="polite">
+  <template x-if="popup"><div class="rounded-lg border bg-panel shadow-xl p-3 border-l-4" :class="SEV[popup.sev].pop">
+    <div class="flex items-start gap-2"><span class="leading-none mt-0.5" x-text="SEV[popup.sev].icon"></span>
+      <div class="flex-1 min-w-0"><div class="text-sm font-semibold text-white" x-text="popup.title"></div>
+        <div class="flex gap-3 mt-1.5 text-xs"><button class="text-verm font-medium hover:underline" @click="view='actions';dismissPopup()">Open Things to do</button><button class="text-mute hover:text-white" @click="dismissPopup()">Close</button></div></div>
+      <button class="text-mute hover:text-white leading-none" @click="dismissPopup()" aria-label="Close">×</button></div>
+  </div></template>
+</div>
+
+<!-- TOASTS -->
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 space-y-2 z-[55] w-[460px] max-w-[calc(100vw-2rem)]"><template x-for="t in toasts" :key="t.id"><div class="card px-4 py-3 text-sm border-l-4 shadow-lg flex gap-2 text-white" :class="t.ok?'border-l-emer':'border-l-verm'"><span x-text="t.ok?'✓':'!'" :class="t.ok?'text-emer':'text-verm'" class="font-bold"></span><span x-text="t.msg"></span></div></template></div>
+
+<!-- PAGE TIP POP-UP -->
+<div x-show="tip.show&&!chat.open&&!popup" x-transition.opacity class="fixed bottom-20 right-6 z-40 w-96 max-w-[calc(100vw-3rem)] rounded-xl bg-panel border-2 border-sky-500/60 p-4 shadow-2xl" role="status">
+  <div class="flex justify-between gap-3"><div class="text-xs font-bold uppercase tracking-wide text-sky-300">✨ AI tip for this page</div><button class="text-mute hover:text-white leading-none text-lg -mt-1" @click="tip.show=false" aria-label="Close tip">×</button></div>
+  <div x-show="tip.loading" class="space-y-2 mt-2"><div class="sk h-4 w-2/3"></div><div class="sk h-10"></div></div>
+  <div x-show="!tip.loading"><div class="font-semibold text-base text-white mt-1.5" x-text="tip.title"></div><p class="text-[15px] text-gray-200 mt-1 leading-relaxed" x-text="tip.text"></p>
+    <button class="text-xs text-verm underline mt-2" @click="chat.open=true;tip.show=false">Ask the AI more</button></div>
+</div>
+
+<!-- CHAT -->
+<button x-show="!chat.open" @click="chat.open=true" class="fixed bottom-6 right-6 z-40 bg-verm hover:bg-[#e8401f] text-white rounded-full px-5 py-3 text-sm font-medium shadow-lg">Ask about my data</button>
+<aside x-show="chat.open" x-transition.opacity class="fixed top-0 right-0 h-full w-96 max-w-full bg-panel border-l border-line z-50 flex flex-col">
+  <div class="h-14 px-4 border-b border-line flex items-center justify-between"><div><div class="font-medium text-sm">Data assistant</div><div class="text-xs" :class="ai.live?'text-emer':'text-amber-400'" x-text="ai.live?'Live AI on: ask anything about your business':'Live AI off: simple answers from your numbers'"></div></div><button class="text-mute hover:text-white text-xl leading-none" @click="chat.open=false" aria-label="Close chat">×</button></div>
+  <div class="flex-1 overflow-y-auto p-4 space-y-3" x-ref="msgs">
+    <template x-for="m in chat.msgs"><div class="flex" :class="m.me?'justify-end':''"><div class="max-w-[85%] px-3 py-2 rounded text-sm whitespace-pre-line leading-relaxed" :class="m.me?'bg-verm text-white':'bg-raise'" x-text="m.t"></div></div></template>
+    <div x-show="chat.busy" class="sk h-8 w-24"></div>
+    <div class="flex flex-wrap gap-1.5 pt-1"><template x-for="q in ['How is my business doing?','Which product sells the most?','Which products are low on stock?','Which platform makes the most profit?']"><button class="text-xs border border-line rounded px-2 py-1 text-mute hover:text-white" @click="ask(q)" x-text="q"></button></template></div>
+  </div>
+  <div class="p-3 border-t border-line flex gap-2"><input x-model="chat.input" @keydown.enter="ask()" class="flex-1 px-3 py-2 text-sm" placeholder="Ask about views, sales, reviews…" aria-label="Your question"><button class="btn btn-p" :disabled="chat.busy||!chat.input.trim()" @click="ask()">Send</button></div>
+</aside>
+
+<script>
+const PCOLOR={Instagram:'#d6249f',Facebook:'#1877f2',YouTube:'#ff0000',Google:'#34a853',TikTok:'#111111',Shopify:'#5e8e3e',Amazon:'#ff9900',Flipkart:'#2874f0'};
+const POSTBADGE={live:'border-emer text-emer',paused:'border-amber-400 text-amber-300',stopped:'border-verm text-verm',ended:'border-line text-mute',replaced:'border-line text-mute'};
+const FORMATS={image:{label:'Image post',hint:'Square or portrait picture'},video:{label:'Video',hint:'Any shape, up to 10 minutes'},reel:{label:'Reel / Short',hint:'Vertical 9:16 video, up to 90 seconds'}};
+const FORMAT_SUPPORT={Instagram:['image','video','reel'],Facebook:['image','video','reel'],YouTube:['video','reel'],TikTok:['video','reel'],Google:['image','video'],Amazon:['image','video'],Flipkart:['image']};
+const REELNAME={Instagram:'Reel',Facebook:'Reel',YouTube:'Short',TikTok:'video'};
+const SEV={critical:{label:'Urgent',icon:'🚨',text:'text-red-300',border:'border-l-verm',box:'bg-verm/10 border-verm/50',pop:'border-verm'},
+ warning:{label:'Needs attention',icon:'⚠️',text:'text-amber-300',border:'border-l-amber-400',box:'bg-amber-400/10 border-amber-400/40',pop:'border-amber-400'},
+ info:{label:'Good to know',icon:'💡',text:'text-sky-300',border:'border-l-sky-400',box:'bg-sky-400/10 border-sky-400/40',pop:'border-sky-400'},
+ success:{label:'Good news',icon:'✅',text:'text-emerald-300',border:'border-l-emer',box:'bg-emer/10 border-emer/40',pop:'border-emer'}};
+/* small saved lists (in this browser) so done items and shown pop-ups are remembered for 24 hours */
+function loadStore(k){try{const o=JSON.parse(localStorage.getItem(k)||'{}'),now=Date.now();return Object.fromEntries(Object.entries(o).filter(([,t])=>now-t<864e5))}catch(e){return{}}}
+function saveStore(k,o){try{localStorage.setItem(k,JSON.stringify(o))}catch(e){}}
+const AD_PLATFORMS=['Instagram','Facebook','YouTube','Google','Amazon','Flipkart','TikTok'];
+const fmt=n=>Number(n).toLocaleString('en-IN'), rs=n=>'₹'+fmt(n);
+const FBP=[{sku:'LM-204',units_sold:1840,name:'Linen Shirt',category:'Shirts',price:1999,cost:760,stock:56,daily_sales:14,status:'active',ad_spend:38000},{sku:'LM-117',units_sold:2210,name:'Chino Pants',category:'Pants',price:2499,cost:1050,stock:380,daily_sales:20,status:'active',ad_spend:22500},{sku:'LM-330',units_sold:640,name:'Overshirt',category:'Shirts',price:3299,cost:1400,stock:54,daily_sales:9,status:'active',ad_spend:15200},{sku:'LM-051',units_sold:3920,name:'Basic Tee',category:'Tops',price:799,cost:290,stock:1260,daily_sales:30,status:'active',ad_spend:9800}];
+const FBF={forecast_horizon:'Next 14 days',predicted_poas:1.28,predicted_revenue_growth_pct:12.5,fatigue_risk_level:'high',stockout_risk_days:4,summary:'If nothing changes, profit per ₹1 of ads should rise slightly to about 1.28 once weak ads are stopped. The linen shirt will run out in about 4 days.',inventory_advice:'Reorder about 240 Linen Shirts and 135 Overshirts now to cover 3 weeks.',integration_suggestions:['Connect Meta Conversions API to recover sales that iPhone privacy settings hide.','Connect your warehouse stock count so ads pause before a product sells out.','Connect courier tracking to show real delivery times.']};
+const FBA=[{id:'AL-1',severity:'critical',title:'Linen shirt almost out of stock',message:'Only 4 days of stock left. Limit ads on this product today.',timestamp:'Sample'},{id:'AL-2',severity:'warning',title:'Ad fatigue on Meta',message:'“Summer Drop – UGC v3” is seen 4.8 times per person and clicks are down 31%.',timestamp:'Sample'},{id:'AL-3',severity:'success',title:'TikTok video is doing well',message:'“Founder Story” earns ₹1.62 profit for every ₹1 spent.',timestamp:'Sample'}];
+const FBT=[{time:'Sample',title:'Data synced',desc:'Meta, TikTok, Shopify and Amazon data was updated.',type:'info'},{time:'Sample',title:'Orders matched',desc:'99.8% of orders matched real sales.',type:'success'},{time:'Sample',title:'Tired ad detected',desc:'Clicks fell sharply on one Meta ad.',type:'warning'},{time:'Sample',title:'Low stock guard started',desc:'Ads on the linen shirt were flagged.',type:'info'}];
+const TIPS={ads:{title:'Move budget to what sells',text:'Compare profit after ads on each platform. Pause ads where it is negative, and stop ads on products that are almost out of stock.'},overview:{title:'Fix the tired ad first',text:'One tired Meta ad is holding back profit. Approve the stop in Things To Do, then give TikTok more budget.'},platforms:{title:'TikTok earns the most',text:'TikTok makes the most profit per ₹1. Check Amazon listing photos and ad spend, since it earns the least.'},products:{title:'Protect your margins',text:'Linen Shirt sells fastest, so avoid discounts until it is back in stock.'},inventory:{title:'Reorder two products now',text:'Linen Shirt and Overshirt run out within a week. Add stock soon and limit their ads until it arrives.'},ingestion:{title:'Amazon data is slow',text:'Amazon updated 14 minutes ago, so recent Amazon sales may be missing from totals.'},causal:{title:'Two problems need action',text:'One ad is tired and two products are almost out of stock. Fix the tired ad first to save the most money.'},poas:{title:'Stop money-losing campaigns',text:'Campaigns below 1.00 lose money on every ₹1 spent. Move that budget to the best campaign.'},actions:{title:'Start with the safest change',text:'Stopping the Amazon ad on the linen shirt is 96% sure because the product is almost out of stock.'},timeline:{title:'Watch stock today',text:'The low-stock alert is the most urgent. Check it again tomorrow morning.'}};
+/* Month-wise chart drawn as plain SVG: bars = units sold, red line = views, dashed amber line = reviews */
+function monthSvg(rows){
+ if(!rows||!rows.length)return '<p style="color:#8b97a7;font-size:13px;padding:24px 0">No data for this choice yet.</p>';
+ const W=760,H=290,L=56,R=64,T=40,B=36,pw=W-L-R,ph=H-T-B,n=rows.length,slot=pw/n,bw=Math.min(46,slot*0.5);
+ const nice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p};
+ const short=v=>v>=1e7?(v/1e7).toFixed(1)+'Cr':v>=1e5?(v/1e5).toFixed(1)+'L':v>=1e3?(v/1e3).toFixed(1)+'k':String(Math.round(v));
+ const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ const uMax=nice(Math.max(1,...rows.map(r=>r.units))*1.12),vMax=nice(Math.max(1,...rows.map(r=>r.views)));
+ const x=i=>L+slot*i+slot/2,yU=v=>T+ph-v/uMax*ph,yV=v=>T+ph-v/vMax*ph;
+ let g='';
+ for(let k=0;k<=5;k++){const yy=T+ph-ph*k/5;
+  g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#1d252f"/>`+
+     `<text x="${L-8}" y="${yy+4}" text-anchor="end" font-size="11" fill="#8b97a7">${short(uMax*k/5)}</text>`+
+     `<text x="${W-R+8}" y="${yy+4}" font-size="11" fill="#ff8a73">${short(vMax*k/5)}</text>`}
+ rows.forEach((r,i)=>{const h=Math.max(0,T+ph-yU(r.units));
+  g+=`<rect x="${x(i)-bw/2}" y="${yU(r.units)}" width="${bw}" height="${h}" rx="2" fill="#10b981"><title>${esc(r.label)}: ${Number(r.units).toLocaleString('en-IN')} units sold, ${Number(r.views).toLocaleString('en-IN')} views, ${r.reviews} reviews</title></rect>`+
+     `<text x="${x(i)}" y="${yU(r.units)-6}" text-anchor="middle" font-size="11" fill="#fbbf24">${r.reviews} rev${r.avg_rating?' · ★'+r.avg_rating:''}</text>`+
+     `<text x="${x(i)}" y="${H-B+18}" text-anchor="middle" font-size="12" fill="#8b97a7">${esc(r.label)}${i===n-1?'*':''}</text>`});
+ const path=f=>rows.map((r,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+f(r).toFixed(1)).join(' ');
+ g+=`<path d="${path(r=>yV(r.views))}" fill="none" stroke="#ff4b2b" stroke-width="2.5"/>`;
+  rows.forEach((r,i)=>{g+=`<circle cx="${x(i)}" cy="${yV(r.views)}" r="3.5" fill="#ff4b2b"><title>${esc(r.label)}: ${Number(r.views).toLocaleString('en-IN')} views</title></circle>`});
+ const leg=`<g font-size="12" fill="#d8dee8"><rect x="${L}" y="8" width="12" height="12" rx="2" fill="#10b981"/><text x="${L+18}" y="18">Units sold (left)</text>`+
+  `<line x1="${L+140}" x2="${L+160}" y1="14" y2="14" stroke="#ff4b2b" stroke-width="2.5"/><text x="${L+166}" y="18">Views (right)</text>`+
+  `<text x="${L+270}" y="18" fill="#fbbf24">rev = reviews that month</text><text x="${W-R}" y="18" text-anchor="end" fill="#8b97a7">* this month so far</text></g>`;
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px;display:block" xmlns="http://www.w3.org/2000/svg" font-family="Public Sans,system-ui,sans-serif">${leg}${g}</svg>`}
+
+/* Sample month-wise numbers, used only when the server cannot be reached */
+function sampleMonths(products,sku,plat){
+ const now=new Date(),rows=[],list=sku==='all'?products:products.filter(p=>p.sku===sku);
+ const share=plat==='all'?1:plat==='Website'?0.2:0.16;
+ for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),days=i===0?now.getDate():30,grow=0.8+(5-i)*0.06;
+  let units=0,sales=0;list.forEach(p=>{const u=Math.round(p.daily_sales*days*grow*share);units+=u;sales+=u*p.price});
+  rows.push({month:d.toISOString().slice(0,7),label:d.toLocaleString('en-US',{month:'short',year:'numeric'}),units,sales,views:units*(plat==='Website'?40:420),clicks:plat==='Website'?0:units*30,ad_spend:plat==='Website'?0:days*800*list.length,reviews:Math.round(units*0.06),avg_rating:units?4.2:null})}
+ return rows}
+
+function nexus(){
+ const MOCK={
+  diagnose:{root_cause:"One Meta ad (“Summer Drop – UGC v3”) has been shown too many times and fewer people click it, so each sale now costs more. At the same time your best-selling shirt is running low, so some ad money goes to items that earn less.",confidence:.91,opportunity_score:84,recommended_action:"Stop the “UGC v3” ad, move ₹45,000 a day to the “Founder Story” TikTok video, and limit ads on the linen shirt until new stock arrives."},
+  feedback:{sentiment:{positive:.58,neutral:.17,negative:.25},summary:"Customers like the fabric and fit. Most complaints are about the colour looking different from the ad, and slow delivery outside big cities.",themes:["Fabric quality","Colour in ad vs real","Slow delivery","Size runs small"],creative_feedback:["Re-shoot the main photo in daylight so the colour matches the product.","Show fabric and fit close-ups first, since people praise these most.","Mention delivery time on pages for smaller cities."]},
+  actions:[{id:'A-101',type:'pause',target:'Meta: Summer Drop – UGC v3',change:'Stop ad',impact:'Save about ₹18,400 a day',confidence:.93},{id:'A-102',type:'realloc',target:'Meta to TikTok: Founder Story',change:'₹45,000 a day',impact:'More profit per ₹1',confidence:.88},{id:'A-103',type:'pause',target:'Amazon: Sponsored ad, linen shirt',change:'Stop until restock',impact:'Avoids 3 days out of stock',confidence:.96},{id:'A-104',type:'realloc',target:'Retargeting to new customers',change:'₹20,000 a day',impact:'About ₹9,100 more a day',confidence:.74}]};
+ const days=n=>Array.from({length:14},(_,i)=>Math.round(n*(0.85+0.3*Math.sin(i/2.3)+i*0.012)));
+ const P={
+  Meta:{viewsLabel:'Ad views',clicksLabel:'Link clicks',views:1842000,clicks:41300,orders:1260,spend:680000,sales:2110000,poas:1.34,extra:[['Click rate','2.2%'],['Cost per order','₹540'],['Times one person saw an ad','3.4']],trend:days(131000),
+   reviews:[{s:'good',t:'Fits perfectly and the fabric feels premium.'},{s:'bad',t:'The colour in the Instagram ad looks bluer than what I received.'},{s:'mixed',t:'Nice shirt, but size M is a little tight.'}],
+   todo:['Stop the “Summer Drop – UGC v3” ad. It has been seen too often.','Re-shoot ad photos in daylight so the colour matches.','Test two new video ads using customer reviews.']},
+  TikTok:{viewsLabel:'Video views',clicksLabel:'Link clicks',views:3960000,clicks:52800,orders:980,spend:420000,sales:1460000,poas:1.62,extra:[['Likes','212,400'],['Shares','18,900'],['Average watch time','7.8 sec']],trend:days(283000),
+   reviews:[{s:'good',t:'Saw it in a video, bought it, love it!'},{s:'good',t:'Quality is better than I expected for this price.'},{s:'bad',t:'Delivery to my town took 9 days.'}],
+   todo:['Give “Founder Story” more budget. It earns the most profit.','Make more videos in the same style and keep them under 15 seconds.','Show delivery time in the video caption.']},
+  Shopify:{viewsLabel:'Store visits',clicksLabel:'Added to cart',views:214000,clicks:18600,orders:4120,spend:null,sales:5230000,poas:null,extra:[['Visitors who buy','1.9%'],['Returned orders','4.1%'],['Repeat customers','27%']],trend:days(15300),
+   reviews:[{s:'good',t:'Easy checkout and fast support.'},{s:'mixed',t:'Product is good, but I wanted more payment options.'},{s:'bad',t:'Size chart was confusing.'}],
+   todo:['Add a clearer size chart on product pages.','Add UPI and cash-on-delivery reminders at checkout.','Send a thank-you offer to repeat customers.']},
+  Amazon:{viewsLabel:'Product page views',clicksLabel:'Added to cart',views:96500,clicks:7400,orders:1310,spend:160000,sales:1040000,poas:0.94,extra:[['Buy Box won','81%'],['Returned orders','6.8%'],['Star rating','4.1 / 5']],trend:days(6900),
+   reviews:[{s:'bad',t:'Colour is different from the listing photos.'},{s:'good',t:'Value for money, will buy again.'},{s:'bad',t:'Arrived late and the box was damaged.'}],
+   todo:['Pause the sponsored ad on the linen shirt until it is back in stock.','Replace listing photos with true-colour ones to cut returns.','Ask the courier partner about damaged parcels.']}};
+ return{
+  P,nav:[{id:'overview',label:'Overview'},{id:'platforms',label:'Platform Analysis'},{id:'products',label:'Product Management'},{id:'inventory',label:'Inventory Management'},{id:'ads',label:'Advertisement'},{id:'ingestion',label:'Connected Platforms'},{id:'causal',label:'Problems to Watch'},{id:'poas',label:'Profit Check'},{id:'actions',label:'Things To Do'},{id:'timeline',label:'Time Log & Monthly'}],
+  view:'overview',plat:'Meta',backend:(location.protocol.startsWith('http')&&!['5500','5501','5173','3000','8080'].includes(location.port))?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
+  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],popup:null,popupQueue:[],lastPopAt:0,doneLog:[],dismissed:loadStore('nexus_done'),popped:loadStore('nexus_popped'),sugg:{actions:{items:[],source:'',loading:false,error:''},causal:{items:[],source:'',loading:false,error:''},poas:{items:[],source:'',loading:false,error:''}},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},
+  diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:JSON.parse(JSON.stringify(MOCK.actions)),
+  chat:{open:false,input:'',busy:false,msgs:[{me:false,t:"Hi! Ask me anything about your products, sales, profit, stock, ads or platforms."}]},
+  kpis:[{l:'Profit on ad spend',v:'+38.2%',s:'better than last week',c:'text-emer'},{l:'Reply speed',v:'<450ms',s:'time to get an answer',c:'text-white'},{l:'Orders matched',v:'99.8%',s:'orders checked against real sales',c:'text-emer'},{l:'Safety checks on',v:'7',s:'2 stepped in today',c:'text-verm'}],
+  sources:[{n:'Meta Ads',rec:'184,220',sync:'2 min ago',ok:true},{n:'TikTok Ads',rec:'96,410',sync:'3 min ago',ok:true},{n:'Shopify',rec:'41,905',sync:'1 min ago',ok:true},{n:'Amazon',rec:'22,318',sync:'14 min ago',ok:false}],
+  fatigue:[{n:'Summer Drop – UGC v3',f:'4.8',d:'-31%',s:92},{n:'Monsoon Sale – Static',f:'3.9',d:'-22%',s:68},{n:'Founder Story – Reel',f:'1.7',d:'-3%',s:14},{n:'Bundle Offer – Carousel',f:'2.9',d:'-12%',s:41}],
+  get stock(){return this.products.map(p=>({sku:p.name,d:this.cover(p),sp:rs(p.ad_spend||0),g:this.cover(p)<7}))},
+  poas:[{n:'Founder Story',ch:'TikTok',sp:'₹4.2 lakh',r:3.9,p:1.62},{n:'New customers',ch:'Meta',sp:'₹6.8 lakh',r:3.1,p:1.34},{n:'Retargeting (14 days)',ch:'Meta',sp:'₹2.1 lakh',r:5.2,p:1.08},{n:'Sponsored: Linen Shirt',ch:'Amazon',sp:'₹1.6 lakh',r:2.8,p:0.94},{n:'Summer Drop – UGC v3',ch:'Meta',sp:'₹3.4 lakh',r:1.9,p:0.71}],
+  sample:"Love the fabric, fits perfectly!\nColour looks different from the Instagram ad, more grey than blue.\nDelivery took 9 days to Coimbatore, too slow.\nBest shirt I've bought this year, ordering another.\nSize M runs slightly small.",
+  get current(){return this.nav.find(n=>n.id===this.view)},
+  get pending(){return this.openTasks.length},
+  pct(v){return v==null?'-':(v<=1?Math.round(v*100):Math.round(v))+'%'},
+  stats(n){const m=P[n];const s=[[m.viewsLabel,fmt(m.views)],[m.clicksLabel,fmt(m.clicks)],['Orders',fmt(m.orders)],['Sales',rs(m.sales)]];
+   s.push(m.spend==null?['Ad spend','No ads here']:['Ad spend',rs(m.spend)],m.poas==null?['Profit per ₹1 of ads','Not applicable']:['Profit per ₹1 of ads',m.poas.toFixed(2)]);return s.concat(m.extra).slice(0,8)},
+  init(){
+   try{this.backend=localStorage.getItem('nexus_backend')||this.backend}catch(e){}
+   Chart.defaults.color='#8b97a7';Chart.defaults.borderColor='#27303b';Chart.defaults.font.family="'Public Sans',sans-serif";this.ping();setInterval(()=>this.ping(),15000);
+   this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);setInterval(()=>this.syncOrders(),30000);
+   this.pull('/api/actions',d=>{if(Array.isArray(d)&&d.length)this.actions=d},MOCK.actions);
+   this.loadAiAlerts();this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT);
+   setTimeout(()=>this.showTip('overview'),1500);
+   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{redraw();this.showTip(v);if(['actions','causal','poas'].includes(v))this.loadSugg(v);if(v==='poas'&&!this.adsData.length)this.loadAds();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
+   this.pull('/api/ads/platforms',d=>{if(d&&d.ad_platforms){this.adPlatforms=d.ad_platforms;this.salesChannels=d.sales_channels;if(d.formats)this.formats=d.formats;if(d.format_support)this.formatSupport=d.format_support}},{ad_platforms:AD_PLATFORMS,sales_channels:[...AD_PLATFORMS,'Website']});this.$watch('plat',redraw);
+  },
+  saveUrl(){this.backend=this.backend.trim().replace(/\/+$/,'');try{localStorage.setItem('nexus_backend',this.backend)}catch(e){}},
+  async api(path,opts={}){
+   const c=new AbortController(),t=setTimeout(()=>c.abort(),30000);
+   try{const r=await fetch(this.backend.replace(/\/+$/,'')+path,{...opts,signal:c.signal,headers:{'Content-Type':'application/json'}});
+    if(!r.ok){const e=new Error(r.status+' '+r.statusText);e.status=r.status;try{const b=await r.json();e.detail=typeof b.detail==='string'?b.detail:null}catch(_){}throw e}
+    this.online=true;return await r.json()}
+   catch(e){if(!e.status||e.status>=500)this.online=false;throw e}finally{clearTimeout(t)}
+  },
+  async ping(){try{const r=await fetch(this.backend.replace(/\/+$/,'')+'/health',{signal:AbortSignal.timeout(3000)});this.online=r.status<500}catch(e){this.online=false}},
+  fallback(w,e){this.warn=`Could not reach the server (${e.message||'network error'}). Showing sample data for ${w} so you can keep working.`},
+  toast(msg,ok=true){const id=Math.random();this.toasts.push({id,msg,ok});setTimeout(()=>this.toasts=this.toasts.filter(t=>t.id!==id),4000)},
+  async runDiagnosis(){this.diag.loading=true;this.diag.data=null;
+   try{const d=await this.api('/api/diagnose');this.diag.data={root_cause:d.root_cause??d.rootCause??'-',confidence:d.confidence??d.confidence_score,opportunity_score:d.opportunity_score??d.opportunityScore??'-',recommended_action:d.recommended_action??d.recommendedAction??'-'};this.diag.source='From your server'}
+   catch(e){await new Promise(r=>setTimeout(r,1000));this.diag.data=MOCK.diagnose;this.diag.source='Sample data';this.fallback('the problem check',e)}
+   this.diag.loading=false},
+  async analyzeFeedback(){this.fb.loading=true;this.fb.report=null;
+   try{const d=await this.api('/api/analyze-feedback',{method:'POST',body:JSON.stringify({feedback:this.fb.text.split('\n').map(s=>s.trim()).filter(Boolean),text:this.fb.text})});
+    this.fb.report={sentiment:d.sentiment||MOCK.feedback.sentiment,summary:d.summary||'',themes:d.themes||[],creative_feedback:d.creative_feedback||d.creativeFeedback||[]}}
+   catch(e){await new Promise(r=>setTimeout(r,1000));this.fb.report=MOCK.feedback;this.fallback('the review analysis',e)}
+   this.fb.loading=false},
+  async loadActions(){try{const d=await this.api('/api/actions');if(Array.isArray(d)&&d.length)this.actions=d;this.toast('Suggestions updated')}catch(e){this.actions=JSON.parse(JSON.stringify(MOCK.actions));this.fallback('suggestions',e)}},
+  async execute(a){a.status='running';
+   try{await this.api('/api/execute-action',{method:'POST',body:JSON.stringify({action_id:a.id,type:a.type,target:a.target,change:a.change})});this.toast('Done: '+a.target)}
+   catch(e){await new Promise(r=>setTimeout(r,900));this.fallback('applying changes',e);this.toast('Done (sample run): '+a.target)}
+   a.status='done'},
+  cover(p){return p.daily_sales>0?Math.round(p.stock/p.daily_sales):999},
+  /* product stats, worked out here so they update instantly after an edit */
+  ps(p){const u=Math.round((p.price-p.cost)*100)/100,n=p.units_sold||0;return{unit:u,margin:p.price?Math.round(u/p.price*100):0,revenue:Math.round(n*p.price),profit:Math.round(n*u)}},
+  sum(k){return this.products.reduce((s,p)=>s+(k==='units_sold'?(p.units_sold||0):this.ps(p)[k==='revenue'?'revenue':'profit']),0)},
+  get avgMargin(){return this.products.length?Math.round(this.products.reduce((s,p)=>s+this.ps(p).margin,0)/this.products.length):0},
+  async checkAi(force){this.ai.checking=true;
+   try{const d=await this.api('/api/ai-status'+(force?'?force=true':''));this.ai={live:!!d.live,reason:d.reason||'',checking:false};
+    if(force)this.toast(d.live?'Live AI is working ('+(d.model||'Gemini')+')':'Live AI is off: '+d.reason,!!d.live);
+    if(!d.live&&force)this.warn='Live AI is off. '+d.reason}
+   catch(e){this.ai={live:false,reason:'The server is not reachable, so AI cannot run. Start it with: uvicorn main:app --port 8000',checking:false};if(force)this.warn=this.ai.reason}},
+  margin(p){return p.price?Math.round((p.price-p.cost)/p.price*100):0},
+  invStatus(p){const d=this.cover(p);if(p.stock<=0)return['Out of stock','text-verm'];if(d>=999)return['No sales yet','text-mute'];return d<7?['Reorder now','text-verm']:d<14?['Running low','text-amber-400']:['Healthy','text-emer']},
+  reorderQty(p){return Math.max(0,Math.ceil(p.daily_sales*21-p.stock))},
+  get lowCount(){return this.products.filter(p=>this.cover(p)<7).length},
+  get totalUnits(){return this.products.reduce((s,p)=>s+p.stock,0)},
+  get firstOut(){return [...this.products].sort((a,b)=>this.cover(a)-this.cover(b))[0]},
+  async pull(path,apply,fb){try{apply(await this.api(path))}catch(e){apply(JSON.parse(JSON.stringify(fb)));this.fallback('some data',e)}},
+  async mutate(path,method,body,label){try{return{ok:true,data:await this.api(path,{method,body:body?JSON.stringify(body):undefined})}}catch(e){if(e.status&&e.status<500){this.toast(label+' did not work: '+e.message,false);return{ok:false}}this.fallback(label+' (kept on this page only)',e);return{ok:true,data:null}}},
+  async loadProducts(){await this.pull('/api/products',d=>this.products=Array.isArray(d)&&d.length?d:JSON.parse(JSON.stringify(FBP)),FBP)},
+  async loadForecast(){this.forecast=null;await this.pull('/api/forecast',d=>this.forecast=d,FBF)},
+  async update(p,f){if(('price'in f&&!(f.price>0))||('cost'in f&&f.cost<0)||('daily_sales'in f&&f.daily_sales<0)){this.toast('That number is not allowed',false);return}const old={...p};Object.assign(p,f);const r=await this.mutate('/api/products/'+p.sku,'PATCH',f,'Saving the change');if(r.ok)this.toast('Saved');else Object.assign(p,old)},
+  async addProduct(){const n=this.np;if(!n.name.trim()||!(+n.price>0)){this.toast('Enter a product name and a selling price',false);return}
+   if(+n.cost<0||+n.stock<0){this.toast('Numbers cannot be negative',false);return}
+   if(+n.cost>=+n.price&&!confirm('Cost to make is not less than the selling price, so each sale loses money. Add anyway?'))return;
+   const body={name:n.name.trim(),category:n.category.trim()||'General',price:+n.price,cost:+n.cost||0,stock:Math.round(+n.stock)||0};
+   const r=await this.mutate('/api/products','POST',body,'Adding the product');if(!r.ok)return;
+   this.products.push(r.data&&r.data.sku?r.data:{...body,daily_sales:0,units_sold:0,sku:'NX-'+Math.floor(100+Math.random()*900),status:'active',ad_spend:0});
+   this.np={name:'',category:'',price:'',cost:'',stock:''};this.toast(body.name+' added. It is now in Inventory and Advertisement too.');this.loadAds()},
+  async removeProduct(p){if(!confirm('Remove '+p.name+'?'))return;const r=await this.mutate('/api/products/'+p.sku,'DELETE',null,'Removing the product');if(r.ok){this.products=this.products.filter(x=>x.sku!==p.sku);if(this.mon.sku===p.sku)this.mon.sku='all';this.loadAds()}},
+  async restock(p){const q=Math.round(+this.rsk[p.sku]);if(!(q>0)){this.toast('Enter how many units to add',false);return}
+   const r=await this.mutate('/api/inventory/restock','POST',{sku:p.sku,quantity:q},'Adding stock');if(!r.ok)return;
+   p.stock=r.data&&r.data.stock!=null?r.data.stock:p.stock+q;this.rsk[p.sku]='';this.toast('Added '+q+' units to '+p.name);this.loadForecast()},
+  /* ---------- orders synced from platforms ---------- */
+  orderTotal(sku){return Object.values(this.orders.byProduct[sku]||{}).reduce((a,b)=>a+b,0)},
+  orderChips(sku){return Object.entries(this.orders.byProduct[sku]||{}).sort((a,b)=>b[1]-a[1])},
+  async refreshProducts(){try{const d=await this.api('/api/products');if(!Array.isArray(d))return;
+    const old=Object.fromEntries(this.products.map(p=>[p.sku,p]));
+    d.forEach(n=>{const o=old[n.sku];if(o){if(n.stock<o.stock){this.flash[n.sku]=true;setTimeout(()=>this.flash[n.sku]=false,2500)}Object.assign(o,n)}else this.products.push(n)});
+    const keep=new Set(d.map(p=>p.sku));this.products=this.products.filter(p=>keep.has(p.sku))}catch(e){}},
+  async loadOrders(){try{const d=await this.api('/api/orders');this.orders.byProduct=d.by_product||{};this.orders.recent=d.recent||[];this.orders.connected=d.connected||[];this.orders.last=d.last_sync||this.orders.last}catch(e){}},
+  async syncOrders(manual=false){if(this.orders.busy)return;this.orders.busy=true;
+   try{const d=await this.api('/api/orders/sync',{method:'POST'});this.orders.error='';this.orders.last=d.synced_at;
+    this.orders.session+=d.orders;this.orders.sessionUnits+=d.units;
+    await Promise.all([this.refreshProducts(),this.loadOrders()]);
+    await Promise.all([this.loadAds(),this.loadPosts()]);if(this.view==='overview')this.loadOverview();if(this.view==='timeline')this.loadMonthly();if(this.view==='ingestion')this.loadConnections();this.buildNotes();
+    if(d.orders&&(manual||this.view==='inventory'))this.toast(d.orders+' new order'+(d.orders>1?'s':'')+' synced, stock updated');
+    else if(manual)this.toast('No new orders since the last sync')}
+   catch(e){this.orders.error=e.status===404?'Your server is running old code. Copy the new main.py and ads.py, then restart the server.':'The server is not reachable, so orders cannot sync. Start it with: uvicorn main:app --port 8000'}
+   this.orders.busy=false},
+  /* ---------- advertisement ---------- */
+  get allAds(){return this.adsData.flatMap(p=>p.ads)},
+  get adProduct(){return this.adsData.find(p=>p.sku===this.adSku)},
+  get avgAdRating(){const a=this.allAds.filter(x=>x.review_count),n=a.reduce((s,x)=>s+x.review_count,0);return n?(a.reduce((s,x)=>s+x.avg_rating*x.review_count,0)/n).toFixed(1):null},
+  adOf(pl){const p=this.adProduct;return p?p.ads.find(a=>a.platform===pl):null},
+  adBadge(a){if(!a)return['Not advertised','border-line text-mute','text-mute'];return a.status==='active'?['Running','border-emer text-emer','text-emer']:a.status==='paused'?['Paused','border-amber-400 text-amber-300','text-amber-300']:['Stopped','border-verm text-verm','text-verm']},
+  async loadAds(){try{const d=await this.api('/api/ads');this.adsData=Array.isArray(d)?d:[];this.adsError='';
+    if(!this.adsData.find(p=>p.sku===this.adSku))this.adSku=this.adsData[0]?this.adsData[0].sku:''}
+   catch(e){this.adsError='Advertisement needs the server. Start it with: uvicorn main:app --port 8000 ('+(e.message||'not reachable')+')'}},
+  async startAd(pl,budget){if(!(budget>0)){this.toast('Enter a daily budget above 0',false);return}
+   try{const d=await this.api('/api/ads',{method:'POST',body:JSON.stringify({sku:this.adSku,platform:pl,daily_budget:budget})});this.adBudget[pl]='';this.toast(d.message);await this.loadAds()}
+   catch(e){this.toast(e.detail||('Could not start the ad: '+e.message),false)}},
+  async changeAd(pl,f,sku){sku=sku||this.adSku;if('daily_budget'in f&&!(f.daily_budget>0)){this.toast('Daily budget must be above 0',false);return}
+   try{await this.api('/api/ads',{method:'PATCH',body:JSON.stringify({sku,platform:pl,...f})});
+    this.toast(f.status==='paused'?'Paused on '+pl:f.status==='active'?'Running again on '+pl:f.status==='stopped'?'Stopped advertising on '+pl:'Budget saved');await this.loadAds();await this.loadPosts()}
+   catch(e){this.toast(e.detail||('Could not change the ad: '+e.message),false)}},
+  async simulateDay(){this.adsBusy=true;try{const d=await this.api('/api/ads/simulate-day',{method:'POST'});
+    this.toast(`One day simulated: ${fmt(d.views)} views, ${fmt(d.orders)} orders, ${d.reviews} new reviews. Stock updated.`);await this.loadAds();await this.refreshProducts();await this.loadOrders()}
+   catch(e){this.toast('Could not simulate: '+e.message,false)}this.adsBusy=false},
+  /* ---------- overview ---------- */
+  greeting(){const h=new Date().getHours();return (h<12?'Good morning':h<17?'Good afternoon':'Good evening')+', here is your business today'},
+  todayLabel(){return new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})},
+  async loadOverview(){try{const d=await this.api('/api/monthly?sku=all&platform=all');this.ov.rows=d.months||[]}catch(e){this.ov.rows=sampleMonths(this.products,'all','all')}this.ov.svg=monthSvg(this.ov.rows)},
+  get ovKpis(){const R=this.ov.rows,c=R[R.length-1],p=R[R.length-2];if(!c)return[{l:'Sales',v:'-',s:'Loading…',ch:null}];
+   const day=new Date().getDate(),pace=(a,b)=>b?Math.round(((a/day)/(b/30)-1)*100):null;
+   const sc=pace(c.sales,p&&p.sales),oc=pace(c.units,p&&p.units),ac=pace(c.ad_spend,p&&p.ad_spend),ret=c.ad_spend?(c.sales/c.ad_spend).toFixed(1):null;
+   const txt=(ch,word)=>ch==null?'No earlier month':Math.abs(ch)+'% '+(ch>=0?'faster':'slower')+' than last month';
+   return[{l:'Sales',v:rs(c.sales),ch:sc,good:sc>=0,s:txt(sc)},{l:'Orders',v:fmt(c.units)+' units',ch:oc,good:oc>=0,s:txt(oc)},
+    {l:'Ad spend',v:rs(c.ad_spend),ch:null,s:ret?'₹'+ret+' of sales for every ₹1 spent':'No ad spend yet'},
+    {l:'Customer rating',v:c.avg_rating?'★ '+c.avg_rating:'-',ch:null,s:fmt(c.reviews)+' reviews this month'}]},
+  get platformTotals(){const t={};Object.values(this.orders.byProduct).forEach(m=>Object.entries(m).forEach(([k,v])=>t[k]=(t[k]||0)+v));
+   return Object.entries(t).map(([p,n])=>({p,n})).sort((a,b)=>b.n-a.n)},
+  /* ---------- AI notifications ---------- */
+  get activeNotes(){const o={critical:0,warning:1,info:2,success:3};return [...this.notes].sort((a,b)=>o[a.sev]-o[b.sev]||(a.read-b.read))},
+  get unread(){return this.notes.filter(n=>!n.read).length},
+  get unreadCritical(){return this.notes.some(n=>!n.read&&n.sev==='critical')},
+  get focusNote(){return this.activeNotes.find(n=>n.sev==='critical'||n.sev==='warning')||null},
+  get openTasks(){return this.activeNotes.filter(n=>!this.dismissed[n.key])},
+  upsertNote(n){const ex=this.notes.find(x=>x.key===n.key);const time=new Date().toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'});
+   if(ex){if(ex.msg!==n.msg||ex.sev!==n.sev)Object.assign(ex,n);return}
+   this.notes.push({...n,time,read:false});
+   // pop up only urgent problems, at most one every 2 minutes, and each one only once a day
+   if(n.sev==='critical'&&!this.popped[n.key]&&!this.dismissed[n.key]&&Date.now()-this.lastPopAt>120000&&!this.popup){
+    this.popped[n.key]=Date.now();saveStore('nexus_popped',this.popped);this.lastPopAt=Date.now();this.showPopup(this.notes[this.notes.length-1])}},
+  showPopup(n){this.popup=n;clearTimeout(this._pt);this._pt=setTimeout(()=>this.dismissPopup(),10000)},
+  dismissPopup(){clearTimeout(this._pt);this.popup=null},
+  openNote(n){n.read=true;this.dismissPopup();if(n.go){this.view=n.go;if(n.sku)this.adSku=n.sku}},
+  dismiss(key,title){this.dismissed[key]=Date.now();saveStore('nexus_done',this.dismissed);this.doneLog.unshift({title,time:new Date().toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'})})},
+  /* buttons that fix a task in one click */
+  taskBtn(n){const t=n.key.split(':')[0],p=this.products.find(x=>x.sku===n.sku);
+   return (t==='oos'||t==='low')&&p?'Add '+fmt(this.restockQty(p))+' units':t==='loss'?'Pause this ad':t==='rate'?'Read reviews':t==='noconn'?'Connect accounts':''},
+  async doTask(n){const t=n.key.split(':')[0],p=this.products.find(x=>x.sku===n.sku);
+   if((t==='oos'||t==='low')&&p){await this.quickRestock(p,this.restockQty(p))}
+   else if(t==='loss'){await this.changeAd(n.platform,{status:'paused'},n.sku)}
+   else{this.openNote(n);return}
+   this.dismiss(n.key,n.title);this.buildNotes()},
+  restockQty(p){return Math.max(this.reorderQty(p),p.stock<=0?50:0)||50},
+  async quickRestock(p,q){const r=await this.mutate('/api/inventory/restock','POST',{sku:p.sku,quantity:q},'Adding stock');if(!r.ok)return;
+   p.stock=r.data&&r.data.stock!=null?r.data.stock:p.stock+q;this.toast('Added '+fmt(q)+' units to '+p.name);this.refreshProducts()},
+  /* ---------- AI suggestions ---------- */
+  async loadSugg(sec){const S=this.sugg[sec];S.loading=true;
+   try{const d=await this.api('/api/suggestions?section='+sec);S.items=d.suggestions||[];S.source=d.source;S.error=''}
+   catch(e){S.error=e.status===404?'Your server is running old code. Copy the new files and restart it.':'The server is not reachable, so suggestions cannot load.'}
+   S.loading=false},
+  suggKey(x){return x.kind+':'+(x.sku||'')+':'+(x.platform||'')+':'+(x.kind==='other'?x.title:'')},
+  visibleSugg(sec){let L=this.sugg[sec].items.filter(x=>!this.dismissed['s:'+this.suggKey(x)]);
+   if(sec==='actions'){const t=new Set(this.openTasks.map(n=>n.key));   // do not repeat what is already in "Needs attention now"
+    L=L.filter(x=>!(x.kind==='restock'&&(t.has('oos:'+x.sku)||t.has('low:'+x.sku)))&&!(x.kind==='pause_ad'&&t.has('loss:'+x.sku+x.platform)))}
+   const o={high:0,medium:1,low:2};return [...L].sort((a,b)=>(o[a.priority]??1)-(o[b.priority]??1))},
+  adFor(sku,pl){const p=this.adsData.find(x=>x.sku===sku);return p?p.ads.find(a=>a.platform===pl):null},
+  suggBtn(x){const p=this.products.find(q=>q.sku===x.sku),a=this.adFor(x.sku,x.platform);
+   if(x.kind==='restock'&&p)return 'Add '+fmt(this.restockQty(p))+' units';
+   if(x.kind==='pause_ad'&&a&&a.status==='active')return 'Pause ad';
+   if(x.kind==='raise_budget'&&a)return 'Raise to '+rs(Math.round(a.daily_budget*1.25))+'/day';
+   if(x.kind==='lower_budget'&&a)return 'Lower to '+rs(Math.round(a.daily_budget*0.75))+'/day';
+   if(x.kind==='fix_reviews')return 'Read reviews';
+   if(x.platform&&!this.isConn(x.platform))return 'Connect '+x.platform;
+   return ''},
+  async doSugg(x){const p=this.products.find(q=>q.sku===x.sku),a=this.adFor(x.sku,x.platform);
+   if(x.kind==='restock'&&p)await this.quickRestock(p,this.restockQty(p));
+   else if(x.kind==='pause_ad'&&a)await this.changeAd(x.platform,{status:'paused'},x.sku);
+   else if(x.kind==='raise_budget'&&a)await this.changeAd(x.platform,{daily_budget:Math.round(a.daily_budget*1.25)},x.sku);
+   else if(x.kind==='lower_budget'&&a)await this.changeAd(x.platform,{daily_budget:Math.round(a.daily_budget*0.75)},x.sku);
+   else if(x.kind==='fix_reviews'){this.adSku=x.sku;this.openRev=x.platform;this.view='ads';return}
+   else if(x.platform&&!this.isConn(x.platform)){this.view='ingestion';return}
+   this.dismiss('s:'+this.suggKey(x),x.title);this.buildNotes()},
+  get profitRows(){const out=[];this.adsData.forEach(p=>{const pr=this.products.find(q=>q.sku===p.sku);if(!pr)return;
+    p.ads.forEach(a=>{const gross=Math.round(a.orders*(pr.price-pr.cost));out.push({...a,sku:p.sku,product:p.name,gross,ppr:a.spend?gross/a.spend:null})})});
+   return out.sort((a,b)=>(b.ppr??-1)-(a.ppr??-1))},
+  async loadAiAlerts(){try{const d=await this.api('/api/alerts');this.alerts=Array.isArray(d)&&d.length?d:FBA;(Array.isArray(d)?d:[]).forEach(a=>this.upsertNote({key:'ai:'+a.title,src:'ai',sev:a.severity==='success'?'success':a.severity==='critical'?'critical':'warning',title:a.title,msg:a.message,go:/stock/i.test(a.title+a.message)?'inventory':'ads'}))}catch(e){this.alerts=FBA}},
+  buildNotes(){const live=[];
+   this.products.filter(p=>p.status==='active').forEach(p=>{
+    if(p.stock<=0)live.push({key:'oos:'+p.sku,sku:p.sku,sev:'critical',title:p.name+' is out of stock',msg:'Orders from every platform have stopped for this product. Add stock in Inventory, and pause its ads so you do not pay for views you cannot sell.',go:'inventory'});
+    else if(this.cover(p)<7)live.push({key:'low:'+p.sku,sku:p.sku,sev:'warning',title:p.name+' runs out in '+this.cover(p)+' days',msg:'Only '+fmt(p.stock)+' left at '+p.daily_sales+' a day. Reorder about '+fmt(this.reorderQty(p))+' units to cover 3 weeks.',go:'inventory'})});
+   this.adsData.forEach(p=>p.ads.forEach(a=>{
+    if(a.status==='active'&&a.connected&&a.profit_after_ads<0)live.push({key:'loss:'+p.sku+a.platform,platform:a.platform,sev:'warning',title:'Ad losing money: '+p.name+' on '+a.platform,msg:'After ad spend this ad is '+rs(-a.profit_after_ads)+' in the red. Lower its budget, change the ad, or pause it.',go:'ads',sku:p.sku});
+    if(a.status==='active'&&a.avg_rating&&a.avg_rating<3.6&&a.review_count>=5)live.push({key:'rate:'+p.sku+a.platform,platform:a.platform,sev:'warning',title:'Low rating for '+p.name+' on '+a.platform,msg:'Customers rate it ★'+a.avg_rating+' from '+a.review_count+' reviews. Read the reviews on the Advertisement page to see what is wrong.',go:'ads',sku:p.sku})}));
+   this.posts.filter(x=>x.status==='ended').slice(0,5).forEach(x=>live.push({key:'end:'+x.id,sev:'info',title:'Ad finished: '+x.headline,msg:x.product+' on '+x.platform+' ended after '+x.duration_days+' days with '+fmt(x.views)+' views and '+fmt(x.orders)+' orders.',go:'ads',sku:x.sku}));
+   if(this.conn.list.length&&!this.conn.list.some(c=>c.connected))live.push({key:'noconn',sev:'info',title:'No accounts connected',msg:'Connect your platforms so orders, ad views and reviews start syncing.',go:'ingestion'});
+   const keys=new Set(live.map(n=>n.key));
+   this.notes=this.notes.filter(n=>n.src==='ai'||keys.has(n.key)); // problems that are fixed disappear
+   live.forEach(n=>this.upsertNote(n))},
+  /* ---------- connected accounts ---------- */
+  isConn(pl){const c=this.conn.list.find(x=>x.platform===pl);return !!(c&&c.connected)},
+  async loadConnections(){try{const d=await this.api('/api/connections');this.conn.list=d.platforms||[];this.conn.live=!!d.live_mode;this.conn.error='';this.buildNotes()}
+   catch(e){this.conn.error=e.status===404?'Your server is running old code. Copy connectors.py and the new main.py, run pip install -r requirements.txt, then restart.':'The server is not reachable. Start it with: uvicorn main:app --port 8000'}},
+  openConnect(c){this.conn.open=c.platform;this.conn.form={account_name:'',values:Object.fromEntries(c.fields.map(f=>[f.key,'']))}},
+  async connectPlatform(pl){this.conn.busy=pl;
+   try{const d=await this.api('/api/connections',{method:'POST',body:JSON.stringify({platform:pl,account_name:this.conn.form.account_name,values:this.conn.form.values})});
+    this.toast(d.message);this.conn.open='';this.conn.form={account_name:'',values:{}};await this.loadConnections();this.syncOrders()}
+   catch(e){this.toast(e.detail||('Could not connect: '+e.message),false)}this.conn.busy=''},
+  async connectDemo(pl){this.conn.busy=pl;try{const d=await this.api('/api/connections/demo',{method:'POST',body:JSON.stringify({platform:pl})});this.toast(d.message,d.ok!==false);await this.loadConnections();this.syncOrders()}catch(e){this.toast('Could not connect: '+(e.detail||e.message),false)}this.conn.busy=''},
+  async connectAllDemo(){this.conn.busy='all';for(const c of this.conn.list.filter(c=>!c.connected)){try{await this.api('/api/connections/demo',{method:'POST',body:JSON.stringify({platform:c.platform})})}catch(e){}}
+   this.conn.busy='';await this.loadConnections();this.toast('All platforms connected with demo accounts');this.syncOrders()},
+  async testConn(pl){this.conn.busy=pl;try{const d=await this.api('/api/connections/test',{method:'POST',body:JSON.stringify({platform:pl})});this.toast(d.message,d.ok)}catch(e){this.toast('Test failed: '+(e.detail||e.message),false)}
+   this.conn.busy='';this.loadConnections()},
+  async disconnect(pl){if(!confirm('Disconnect '+pl+'? Its saved keys are deleted and nothing will sync from it.'))return;
+   try{const d=await this.api('/api/connections/'+encodeURIComponent(pl),{method:'DELETE'});this.toast(d.message);await this.loadConnections();this.loadOrders()}catch(e){this.toast('Could not disconnect: '+(e.detail||e.message),false)}},
+  /* ---------- posting ads ---------- */
+  async loadPosts(){try{const d=await this.api('/api/posts');this.posts=Array.isArray(d)?d:[]}catch(e){}},
+  mediaSrc(u){return !u?'':u.startsWith('/')?this.backend.replace(/\/+$/,'')+u:u},
+  canPost(pl){return this.isConn(pl)&&(this.formatSupport[pl]||[]).includes(this.post.format)},
+  whyNot(pl){return !this.isConn(pl)?'not connected':!(this.formatSupport[pl]||[]).includes(this.post.format)?'no '+this.formats[this.post.format].label.toLowerCase()+' here':''},
+  setFormat(k){if(this.post.format===k)return;this.post.format=k;this.post.plats=this.post.plats.filter(pl=>this.canPost(pl));
+   if(this.post.media.type&&((k==='image')!==(this.post.media.type==='image')))this.clearMedia()},
+  clearMedia(){const m=this.post.media;if(m.preview&&m.preview.startsWith('blob:'))URL.revokeObjectURL(m.preview);
+   this.post.media={url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false}},
+  upload(blob,type){return new Promise((ok,bad)=>{const x=new XMLHttpRequest();x.open('POST',this.backend.replace(/\/+$/,'')+'/api/media');x.setRequestHeader('Content-Type',type);
+   x.upload.onprogress=e=>{if(e.lengthComputable)this.post.media.progress=Math.round(e.loaded/e.total*100)};
+   x.onload=()=>{let b={};try{b=JSON.parse(x.responseText)}catch(_){}x.status<300?ok(b):bad(new Error(b.detail||('Upload failed ('+x.status+')')))};
+   x.onerror=()=>bad(new Error('Upload failed: server not reachable'));x.send(blob)})},
+  async pickMedia(ev){const f=ev.target.files[0];ev.target.value='';if(!f)return;const fmt_=this.post.format;
+   const isVid=f.type.startsWith('video/');
+   if(fmt_==='image'&&!f.type.startsWith('image/')){this.toast('Choose a picture for an image post',false);return}
+   if(fmt_!=='image'&&!isVid){this.toast('Choose a video file',false);return}
+   if(isVid&&f.size>100*1024*1024){this.toast('Video is too big. Limit is 100 MB.',false);return}
+   this.clearMedia();const M=this.post.media;M.name=f.name;
+   try{
+    let blob=f,type=f.type;
+    if(isVid){
+     const meta=await new Promise((ok,bad)=>{const v=document.createElement('video');v.preload='metadata';v.muted=true;
+      v.onloadedmetadata=()=>ok({s:v.duration,w:v.videoWidth,h:v.videoHeight});v.onerror=()=>bad(new Error('This video cannot be read. Try an MP4 file.'));v.src=URL.createObjectURL(f)});
+     if(fmt_==='reel'&&meta.s>90.5)throw new Error('A reel or short can be up to 90 seconds. This one is '+Math.round(meta.s)+' s.');
+     if(fmt_==='reel'&&meta.w&&meta.h<=meta.w)throw new Error('A reel or short must be vertical (taller than wide). This video is '+meta.w+'×'+meta.h+'.');
+     if(fmt_==='video'&&meta.s>600)throw new Error('A video ad can be up to 10 minutes.');
+     Object.assign(M,{seconds:meta.s,w:meta.w,h:meta.h,type:'video',preview:URL.createObjectURL(f)});
+     if(!['video/mp4','video/webm','video/quicktime'].includes(type))throw new Error('Use an MP4, WEBM or MOV video.');
+    }else{ // shrink big pictures before upload
+     const img=await new Promise((ok,bad)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>bad(new Error('This picture cannot be read.'));i.src=URL.createObjectURL(f)});
+     const k=Math.min(1,1200/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+     c.getContext('2d').drawImage(img,0,0,c.width,c.height);blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',0.85));type='image/jpeg';
+     Object.assign(M,{w:c.width,h:c.height,type:'image',preview:URL.createObjectURL(blob)});
+    }
+    M.uploading=true;const r=await this.upload(blob,type);M.url=r.url;M.uploading=false;
+   }catch(e){this.clearMedia();this.toast(e.message,false)}},
+  async submitPost(){const P=this.post;
+   if(!P.sku){this.toast('Choose a product',false);return}if(!P.plats.length){this.toast('Choose at least one platform',false);return}
+   if(!P.headline.trim()){this.toast('Write a headline',false);return}if(!(+P.budget>0)){this.toast('Enter a daily budget above 0',false);return}
+   if(P.format!=='image'&&!P.media.url){this.toast('Upload a video for this ad',false);return}
+   P.busy=true;
+   try{const d=await this.api('/api/posts',{method:'POST',body:JSON.stringify({sku:P.sku,platforms:P.plats,format:P.format,headline:P.headline,text:P.text,cta:P.cta,
+     media_url:P.media.url,media_seconds:P.media.seconds,media_width:P.media.w,media_height:P.media.h,daily_budget:+P.budget,days:P.days?+P.days:null})});
+    this.toast(d.message);this.adSku=P.sku;Object.assign(P,{plats:[],headline:'',text:'',open:false});P.media={url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false};
+    await Promise.all([this.loadAds(),this.loadPosts()])}
+   catch(e){this.toast(e.detail||('Could not post: '+e.message),false)}P.busy=false},
+  /* ---------- month-wise log ---------- */
+  monTotal(k){return this.mon.rows.reduce((s,r)=>s+(r[k]||0),0)},
+  get monRating(){const n=this.monTotal('reviews');return n?(this.mon.rows.reduce((s,r)=>s+(r.avg_rating||0)*r.reviews,0)/n).toFixed(1):null},
+  async loadMonthly(){
+   try{const d=await this.api(`/api/monthly?sku=${encodeURIComponent(this.mon.sku)}&platform=${encodeURIComponent(this.mon.plat)}`);
+    this.mon.rows=d.months||[];this.mon.error=''}
+   catch(e){this.mon.rows=sampleMonths(this.products,this.mon.sku,this.mon.plat);
+    this.mon.error=e.status===404?'Your server is running old code, so this is sample data. Copy ads.py and the new main.py next to index.html, stop the server (Ctrl+C) and start it again.'
+     :'The server is not reachable, so this is sample data. Start it with: uvicorn main:app --port 8000'}
+   this.drawMonthly()},
+  drawMonthly(){this.mon.svg=monthSvg(this.mon.rows)},
+  async showTip(s){clearTimeout(this._tt);this.tip={show:true,loading:true,title:'',text:''};let t=this.tipCache[s];
+   if(!t){try{const d=await this.api('/api/section-tip?section='+s);t={title:d.title,text:d.tip};this.tipCache[s]=t}catch(e){t=TIPS[s]||TIPS.overview}}
+   if(this.view!==s)return;this.tip={show:true,loading:false,...t};this._tt=setTimeout(()=>this.tip.show=false,25000)},
+  /* chat: only data questions */
+  async ask(q){q=(q||this.chat.input).trim();if(!q||this.chat.busy)return;this.chat.input='';this.chat.msgs.push({me:true,t:q});this.chat.busy=true;this.scroll();
+   const history=this.chat.msgs.slice(1,-1).slice(-6);let t;
+   try{const d=await this.api('/api/chat',{method:'POST',body:JSON.stringify({question:q,history})});t=d&&d.answer}catch(e){}
+   if(!t)t=this.answer(q).t+'\n\n(The server is not reachable, so this answer comes from the sample numbers on this page.)';
+   this.chat.msgs.push({me:false,t});this.chat.busy=false;this.scroll()},
+  scroll(){this.$nextTick(()=>{const e=this.$refs.msgs;e.scrollTop=e.scrollHeight})},
+  answer(q){q=q.toLowerCase();const al={instagram:'Meta',facebook:'Meta',meta:'Meta',tiktok:'TikTok',shopify:'Shopify',amazon:'Amazon'};
+   let pl=null;for(const k in al)if(q.includes(k)){pl=al[k];break}
+   const h=(...w)=>w.some(x=>q.includes(x));
+   const T={views:h('view','reach','watch','visit','seen','traffic'),clicks:h('click','cart'),orders:h('order','sale','revenue','sold'),spend:h('spend','spent','cost','budget'),profit:h('profit','poas','roas','earn','best','worst','compare','better'),reviews:h('review','feedback','comment','rating','sentiment','complain','customer say'),todo:h('should','action','improve','fix','suggest','recommend','next','advice','what to do'),stock:h('stock','inventory','product','price','margin','reorder','restock'),future:h('future','predict','forecast','expect','next week','will '),tired:h('tired','fatigue','creative')};
+   const tg=pl?[pl]:Object.keys(P),L=[],pr=this.products;
+   const named=pr.filter(p=>q.includes(p.name.toLowerCase()));
+   named.forEach(p=>{const s=this.ps(p);L.push(`${p.name}: sells at ${rs(p.price)}, costs ${rs(p.cost)} to make (${s.margin}% margin), ${fmt(p.units_sold||0)} sold, ${rs(s.profit)} profit, ${fmt(p.stock)} in stock`)});
+   if(pr.length&&h('best sell','most sold','top','popular','sells most','sells the most','selling most','selling the most','best product','best item')){T.stock=false;const b=[...pr].sort((x,y)=>(y.units_sold||0)-(x.units_sold||0))[0];L.push(`Best seller: ${b.name} with ${fmt(b.units_sold||0)} units sold (${rs(this.ps(b).revenue)} in sales).`)}
+   if(named.length)T.stock=false;
+   if(!pl&&!Object.values(T).some(Boolean)&&!L.length){
+    if(pr.length){const best=[...pr].sort((x,y)=>(y.units_sold||0)-(x.units_sold||0))[0],rich=[...pr].sort((x,y)=>this.ps(y).profit-this.ps(x).profit)[0];
+     L.push(`Quick overview: ${pr.length} products. Best seller is ${best.name}, most profitable is ${rich.name}, and ${this.firstOut.name} runs out first.`)}
+    L.push('Best platform for ad profit: TikTok (₹1.62 per ₹1). Weakest: Amazon (₹0.94).','You can ask about a product by name, best sellers, profit, stock, reviews or any platform.');
+    return{ok:true,t:L.join('\n')}}
+   if(T.views)tg.forEach(n=>L.push(`${n}: ${fmt(P[n].views)} ${P[n].viewsLabel.toLowerCase()}`));
+   if(T.clicks)tg.forEach(n=>L.push(`${n}: ${fmt(P[n].clicks)} ${P[n].clicksLabel.toLowerCase()}`));
+   if(T.orders)tg.forEach(n=>L.push(`${n}: ${fmt(P[n].orders)} orders, ${rs(P[n].sales)} in sales`));
+   if(T.spend)tg.forEach(n=>L.push(P[n].spend==null?`${n}: no ad spend`:`${n}: ${rs(P[n].spend)} spent on ads`));
+   if(T.profit){tg.forEach(n=>L.push(P[n].poas==null?`${n}: no ad profit figure`:`${n}: ₹${P[n].poas.toFixed(2)} profit for every ₹1 of ads`));
+    if(!pl){const b=Object.keys(P).filter(n=>P[n].poas).sort((x,y)=>P[y].poas-P[x].poas);L.push(`Best: ${b[0]}. Weakest: ${b[b.length-1]}.`)}}
+   if(T.reviews)tg.forEach(n=>{const r=P[n].reviews,g=r.filter(x=>x.s==='good').length,b=r.filter(x=>x.s==='bad');L.push(`${n}: ${g} happy, ${b.length} unhappy of ${r.length} reviews.${b[0]?' Main complaint: '+b[0].t:''}`)});
+   if(T.todo){if(pl)P[pl].todo.forEach((t,i)=>L.push(`${i+1}. ${t}`));else this.actions.filter(a=>a.status!=='done').slice(0,3).forEach((a,i)=>L.push(`${i+1}. ${a.type==='pause'?'Stop':'Move budget:'} ${a.target} (${a.change})`))}
+   if(T.stock&&h('low','run out','running out','reorder','restock')){const lo=this.products.filter(p=>this.cover(p)<14);if(lo.length)lo.forEach(p=>L.push(`${p.name}: only ${fmt(p.stock)} left, lasts ${this.cover(p)} days. Reorder about ${fmt(this.reorderQty(p))} units.`));else L.push('No product is running low right now.');T.stock=false}
+   if(T.stock)this.products.forEach(p=>L.push(`${p.name}: ${fmt(p.stock)} in stock, lasts ${this.cover(p)} days, price ₹${fmt(p.price)}, profit ${this.margin(p)}% per sale`));
+   if(T.future&&this.forecast)L.push(this.forecast.summary,this.forecast.inventory_advice);
+   if(T.tired)this.fatigue.filter(c=>c.s>60).forEach(c=>L.push(`${c.n}: seen ${c.f} times per person, clicks ${c.d}`));
+   if(!L.length)this.stats(pl||'Meta').forEach(s=>L.push(`${s[0]}: ${s[1]}`));
+   return{ok:true,t:(pl&&!L[0].startsWith(pl)?pl+'\n':'')+L.join('\n')}},
+  drawMain(){Chart.defaults.color='#8b97a7';Chart.defaults.borderColor='#27303b';Chart.defaults.font.family="'Public Sans',sans-serif";
+   this.charts.pie=new Chart(document.getElementById('cPie'),{type:'doughnut',data:{labels:['TikTok','Instagram','Shopify','Amazon'],datasets:[{data:[34,29,22,15],backgroundColor:['#ff4b2b','#f59e0b','#10b981','#38bdf8'],borderColor:'#131920',borderWidth:3}]},options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:14}},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed}% of reviews`}}}}});
+   const d=Array.from({length:14},(_,i)=>'Day '+(i+1));
+   this.charts.line=new Chart(document.getElementById('cLine'),{type:'line',data:{labels:d,datasets:[{label:'Ad spend',data:[210,225,218,240,255,262,248,270,285,279,296,310,304,322],borderColor:'#ff4b2b',tension:.3,pointRadius:0,borderWidth:2},{label:'Profit made',data:[62,70,66,81,94,99,92,108,121,118,133,146,142,158],borderColor:'#10b981',tension:.3,pointRadius:0,borderWidth:2}]},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',align:'end',labels:{boxWidth:10}}},scales:{y:{beginAtZero:true,grid:{color:'#1d252f'}},x:{grid:{display:false}}}}})},
+  drawPlat(){if(this.charts.plat)this.charts.plat.destroy();const m=P[this.plat];
+   this.charts.plat=new Chart(document.getElementById('cPlat'),{type:'bar',data:{labels:Array.from({length:14},(_,i)=>'Day '+(i+1)),datasets:[{label:m.viewsLabel,data:m.trend,backgroundColor:this.plat==='TikTok'?'#ff4b2b':'#10b981',borderRadius:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#1d252f'}},x:{grid:{display:false}}}}})}
+ }}
+</script>
+</body>
+</html>

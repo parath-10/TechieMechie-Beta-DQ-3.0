@@ -1,0 +1,10 @@
+# Never upload these
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+# old local-only files from the in-memory version
+connections.json
+.nexus_secret.key
+media/
