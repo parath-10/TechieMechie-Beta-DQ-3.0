@@ -1,4 +1,4 @@
-"""NEXUS AI engine: Gemini 2.5 Flash with strict JSON schemas and safe fallbacks.
+"""NEXUS AI engine: Groq (Llama 3.3 70B) with strict JSON schemas and safe fallbacks.
 
 Every public function returns usable data even if the API key is missing,
 the SDK is not installed, the model is throttled, or the reply is invalid.
@@ -17,22 +17,19 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 try:
-    from google import genai
-    from google.genai import types
+    from groq import Groq
 except ImportError:  # SDK missing: every function falls back to sample data
-    genai = None
-    types = None
+    Groq = None
 
 # Load .env from the same folder as this file, so it works no matter where uvicorn is started from.
 load_dotenv(Path(__file__).with_name(".env"))
 load_dotenv()
 log = logging.getLogger("nexus.ai")
-PRIMARY_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
-# Tried in order only if the main model name is not found or has been retired.
-BACKUP_MODELS = [m for m in ("gemini-flash-latest", "gemini-2.0-flash") if m != PRIMARY_MODEL]
+
+# Using Groq's incredibly fast Llama 3.3 model
+PRIMARY_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
 CACHE_TTL = int(os.getenv("AI_CACHE_SECONDS", "60"))
 _cache: dict[str, tuple[float, dict]] = {}
-_working_model: str | None = None
 _last_error: str = ""
 
 SYSTEM = (
@@ -49,13 +46,11 @@ class RecommendedAction(BaseModel):
     description: str
     target: str
 
-
 class DiagnosisResult(BaseModel):
     root_cause: str
     confidence_score: float = Field(description="0 to 100")
     opportunity_score: float = Field(description="0 to 100")
     recommended_action: RecommendedAction
-
 
 class ForecastResult(BaseModel):
     forecast_horizon: str
@@ -67,11 +62,9 @@ class ForecastResult(BaseModel):
     summary: str = Field(description="2 plain-English sentences on what will happen next")
     inventory_advice: str = Field(description="one sentence on what to restock and when")
 
-
 class SectionTip(BaseModel):
     title: str = Field(description="at most 6 words")
     tip: str = Field(description="at most 2 short sentences in plain English")
-
 
 class AlertItem(BaseModel):
     id: str
@@ -80,10 +73,8 @@ class AlertItem(BaseModel):
     message: str
     timestamp: str
 
-
 class AlertList(BaseModel):
     alerts: list[AlertItem]
-
 
 class TimelineEvent(BaseModel):
     time: str
@@ -91,16 +82,13 @@ class TimelineEvent(BaseModel):
     desc: str
     type: str = Field(description="'info', 'warning', or 'success'")
 
-
 class TimelineList(BaseModel):
     events: list[TimelineEvent]
-
 
 class Sentiment(BaseModel):
     positive: float
     neutral: float
     negative: float
-
 
 class FeedbackReport(BaseModel):
     sentiment: Sentiment = Field(description="three shares that add up to 1")
@@ -112,58 +100,36 @@ class FeedbackReport(BaseModel):
 # ---------- Helpers ----------
 def _api_key() -> str:
     """Read the key and remove stray quotes or spaces that often sneak into .env files."""
-    raw = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    raw = os.getenv("GROQ_API_KEY") or ""
     return raw.strip().strip('"').strip("'").strip()
 
 
 def _get_client():
-    if genai is None:
+    if Groq is None:
         raise RuntimeError("SDK_MISSING")
     api_key = _api_key()
     if not api_key:
         raise ValueError("KEY_MISSING")
-    return genai.Client(api_key=api_key)
+    return Groq(api_key=api_key)
 
 
 def _explain(exc: Exception) -> str:
     """Turn an SDK or network error into a plain-English reason the dashboard can show."""
     text = str(exc)
     low = text.lower()
-    if genai is None or "SDK_MISSING" in text:
-        return "The google-genai package is not installed. Run: pip install google-genai"
+    if Groq is None or "SDK_MISSING" in text:
+        return "The groq package is not installed. Run: pip install groq"
     if "KEY_MISSING" in text:
-        return ("No GEMINI_API_KEY found. Create a file named .env (not .env.txt) next to ai_engine.py "
-                "containing GEMINI_API_KEY=your_key, then restart the server.")
-    if "api_key_invalid" in low or "api key not valid" in low or "invalid api key" in low:
-        return "Gemini rejected the API key. Copy a fresh key from aistudio.google.com/apikey into .env."
-    if "429" in text or "resource_exhausted" in low or "quota" in low:
-        return "Gemini free-tier limit reached (too many requests). Wait a minute or check your quota in AI Studio."
-    if "permission" in low or "403" in text:
-        return "This API key is not allowed to use Gemini. Enable the Generative Language API for its project."
+        return ("No GROQ_API_KEY found. Create a file named .env containing GROQ_API_KEY=your_key, then restart the server.")
+    if "401" in text or "unauthorized" in low or "invalid api key" in low:
+        return "Groq rejected the API key. Copy a fresh key from console.groq.com into .env."
+    if "429" in text or "rate limit" in low:
+        return "Groq free-tier limit reached (too many requests). Wait a minute and try again."
     if "404" in text or "not found" in low:
-        return f"Model '{PRIMARY_MODEL}' was not found. Set GEMINI_MODEL to a current model name in .env."
-    if any(w in low for w in ("connect", "timed out", "timeout", "getaddrinfo", "network", "ssl")):
-        return "The server could not reach Google (no internet, firewall or proxy)."
-    return "Gemini error: " + text[:200]
-
-
-def _call_model(**kwargs):
-    """Call Gemini; if the model name is not found, try the backup names once."""
-    global _working_model, _last_error
-    client = _get_client()
-    models = [_working_model] if _working_model else [PRIMARY_MODEL, *BACKUP_MODELS]
-    last_exc: Exception | None = None
-    for model in models:
-        try:
-            response = client.models.generate_content(model=model, **kwargs)
-            _working_model, _last_error = model, ""
-            return response
-        except Exception as exc:
-            last_exc = exc
-            low = str(exc).lower()
-            if "404" not in low and "not found" not in low:
-                break  # a bad key, quota or network problem will not be fixed by another model name
-    raise last_exc  # type: ignore[misc]
+        return f"Model '{PRIMARY_MODEL}' was not found. Check the model name."
+    if any(w in low for w in ("connect", "timed out", "timeout", "network")):
+        return "The server could not reach Groq (no internet, firewall or proxy)."
+    return "AI error: " + text[:200]
 
 
 def _note_error(name: str, exc: Exception) -> None:
@@ -181,8 +147,14 @@ def get_ai_status(force: bool = False) -> dict[str, Any]:
     if not force and _status_cache["data"] and time.time() - _status_cache["at"] < 120:
         return _status_cache["data"]
     try:
-        _call_model(contents="Reply with the single word OK.")
-        data = {"live": True, "model": _working_model, "reason": f"Connected to {_working_model}."}
+        client = _get_client()
+        client.chat.completions.create(
+            messages=[{"role": "user", "content": "Reply with the single word OK."}],
+            model=PRIMARY_MODEL,
+            max_tokens=10
+        )
+        data = {"live": True, "model": PRIMARY_MODEL, "reason": f"Connected to {PRIMARY_MODEL} via Groq."}
+        _last_error = ""
     except Exception as exc:
         _last_error = _explain(exc)
         data = {"live": False, "model": PRIMARY_MODEL, "reason": _last_error}
@@ -195,25 +167,34 @@ def _stamp(minutes_ago: int = 0) -> str:
 
 
 def _generate(name: str, prompt: str, schema: type[BaseModel], temperature: float) -> dict | None:
-    """Call Gemini, validate against the schema, cache for a short time. None on any failure."""
+    """Call Groq, validate against the schema, cache for a short time. None on any failure."""
     key = name + hashlib.sha1(prompt.encode()).hexdigest()
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
+    
     try:
-        response = _call_model(
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM,
-                response_mime_type="application/json",
-                response_schema=schema,
-                temperature=temperature,
-            ),
+        client = _get_client()
+        
+        # Enforce strict JSON output by injecting the schema directly into the prompt
+        schema_json = json.dumps(schema.model_json_schema())
+        full_prompt = prompt + f"\n\nYou MUST output strictly in JSON format matching this schema. Output nothing but the JSON object:\n{schema_json}"
+        
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": SYSTEM},
+                {"role": "user", "content": full_prompt}
+            ],
+            model=PRIMARY_MODEL,
+            temperature=temperature,
+            response_format={"type": "json_object"}
         )
-        data = schema.model_validate_json(response.text).model_dump()
+        
+        response_text = chat_completion.choices[0].message.content
+        data = schema.model_validate_json(response_text).model_dump()
         _cache[key] = (time.time(), data)
         return data
-    except Exception as exc:  # throttling, bad key, network, invalid JSON, anything
+    except Exception as exc:
         _note_error(name, exc)
         return None
 
@@ -292,7 +273,7 @@ def _rs(n: Any) -> str:
 
 
 def _local_answer(question: str, ctx: dict) -> str:
-    """Backup answer when Gemini is off: reads the question and answers from the live data, never refuses."""
+    """Backup answer when AI is off: reads the question and answers from the live data, never refuses."""
     q = (question or "").lower()
     has = lambda *w: any(x in q for x in w)
     prods = ctx.get("products", [])
@@ -325,7 +306,7 @@ def _local_answer(question: str, ctx: dict) -> str:
             low = sorted(prods, key=lambda x: x.get("days_of_cover", 999))
             urgent = [p for p in low if p.get("days_of_cover", 999) < 7]
             if urgent:
-                lines.append("Reorder soon: " + ", ".join(f"{p['name']} ({p['days_of_cover']} days left)" for p in urgent) + ".")
+                lines.append("Reorder soon: " + ", ".join(f"{p['name']} ({p.get('days_of_cover')} days left)" for p in urgent) + ".")
             else:
                 lines.append(f"No product runs out within a week. First to run out: {low[0]['name']} ({low[0].get('days_of_cover')} days).")
         if has("price", "cost", "all product", "list", "every product"):
@@ -342,10 +323,10 @@ def _local_answer(question: str, ctx: dict) -> str:
     ad_rows = ctx.get("advertising", [])
     if ad_rows and has("advert", "ads", "review", "rating", "views", "platform", "where"):
         rows = [a for a in ad_rows if not named or a["product"] in {p["name"] for p in named}]
-        for a in sorted(rows, key=lambda x: -x["views"])[:6]:
-            lines.append(f"{a['product']} on {a['platform']} ({a['status']}): {a['views']:,} views, {a['orders']:,} orders, "
-                         f"profit after ads {_rs(a['profit_after_ads'])}"
-                         + (f", rated {a['avg_rating']} from {a['review_count']} reviews" if a.get("avg_rating") else ""))
+        for a in sorted(rows, key=lambda x: -x.get("views", 0))[:6]:
+            lines.append(f"{a['product']} on {a['platform']} ({a['status']}): {a.get('views', 0):,} views, {a.get('orders', 0):,} orders, "
+                         f"profit after ads {_rs(a.get('profit_after_ads', 0))}"
+                         + (f", rated {a.get('avg_rating')} from {a.get('review_count')} reviews" if a.get("avg_rating") else ""))
 
     if not lines:  # greeting or general question: give a short business overview instead of refusing
         if prods:
@@ -369,7 +350,7 @@ def run_diagnosis(campaign_data: dict) -> dict[str, Any]:
     )
     data = _generate("diagnosis", prompt, DiagnosisResult, 0.2)
     if data:
-        data["source"] = "gemini"
+        data["source"] = "groq"
         return data
     fb = _fallback_diagnosis()
     fb["source"] = "fallback"
@@ -385,7 +366,7 @@ def predict_future_performance(campaign_data: dict) -> dict[str, Any]:
     data = _generate("forecast", prompt, ForecastResult, 0.4)
     if data and len(data.get("integration_suggestions", [])) >= 1:
         data["integration_suggestions"] = data["integration_suggestions"][:3]
-        data["source"] = "gemini"
+        data["source"] = "groq"
         return data
     fb = _fallback_forecast()
     fb["source"] = "fallback"
@@ -434,7 +415,7 @@ def analyze_omnichannel_feedback(feedback_list: list) -> dict[str, Any]:
     )
     data = _generate("feedback", prompt, FeedbackReport, 0.2)
     if data:
-        data["source"] = "gemini"
+        data["source"] = "groq"
         return data
     fb = _fallback_feedback(feedback_list)
     fb["source"] = "fallback"
@@ -445,10 +426,13 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
     question = (question or "").strip()
     if not question:
         return "Please type a question."
-    past = ""
+    
+    messages = [{"role": "system", "content": SYSTEM}]
+    
     for h in (history or [])[-6:]:
-        who = "Owner" if h.get("me") else "Assistant"
-        past += f"{who}: {str(h.get('t', ''))[:500]}\n"
+        role = "user" if h.get("me") else "assistant"
+        messages.append({"role": role, "content": str(h.get("t", ""))[:500]})
+        
     prompt = (
         "You are the assistant inside this brand's dashboard. Answer the owner's question in 2 to 5 short, "
         "friendly sentences using the data below (products with cost, price, units sold, profit, stock and "
@@ -457,149 +441,22 @@ def answer_chat_query(question: str, context_data: dict, history: list | None = 
         "this business (for example homework or general trivia), say politely in one sentence that you can "
         "only help with this dashboard's data, and suggest a relevant question."
         f"\n\nData:\n{_json(context_data)}"
-        + (f"\n\nEarlier in this chat:\n{past}" if past else "")
-        + f"\n\nQuestion: {question}"
+        f"\n\nQuestion: {question}"
     )
+    messages.append({"role": "user", "content": prompt})
+    
     try:
-        response = _call_model(
-            contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=0.3),
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=PRIMARY_MODEL,
+            messages=messages,
+            temperature=0.3
         )
-        text = (response.text or "").strip()
+        text = (response.choices[0].message.content or "").strip()
         return text or _local_answer(question, context_data)
     except Exception as exc:
         _note_error("chat", exc)
         return _local_answer(question, context_data)
-
-
-# ---------- AI suggestions (Things To Do, Problems to Watch, Profit Check) ----------
-class Suggestion(BaseModel):
-    title: str = Field(description="at most 8 words")
-    why: str = Field(description="one plain sentence with the real numbers")
-    action: str = Field(description="one plain sentence saying exactly what to do")
-    priority: str = Field(description="'high', 'medium' or 'low'")
-    kind: str = Field(description="'restock', 'pause_ad', 'raise_budget', 'lower_budget', 'fix_reviews' or 'other'")
-    sku: str = Field(description="product sku this is about, or empty")
-    platform: str = Field(description="platform name this is about, or empty")
-
-
-class SuggestionList(BaseModel):
-    suggestions: list[Suggestion]
-
-
-SUGGEST_FOCUS = {
-    "causal": "problems that are hurting the business right now: stock running out, ads on products that cannot sell, ads losing money, low ratings",
-    "poas": "profit from ads: which product-platform ads earn the most and least profit per rupee of ad spend, and where to move budget",
-    "actions": "the most useful things the owner should do today, across stock, ads and reviews",
-}
-KINDS = {"restock", "pause_ad", "raise_budget", "lower_budget", "fix_reviews", "other"}
-
-
-def _profit_per_rupee(a: dict) -> float | None:
-    if not a.get("spend"):
-        return None
-    return round(a["orders"] * (a["price"] - a["cost"]) / a["spend"], 2)
-
-
-def _rule_suggestions(section: str, ctx: dict) -> list[dict]:
-    """Suggestions worked out from the live numbers (used when Gemini is off)."""
-    if section == "actions":  # a mix: the biggest problems plus the best profit moves
-        problems = [x for x in _rule_suggestions("causal", ctx) if x["title"] != "Nothing urgent"]
-        profit = [x for x in _rule_suggestions("poas", ctx) if x["kind"] != "other"]
-        mix = problems[:3] + profit[:2] + problems[3:]
-        return mix[:5] or _rule_suggestions("causal", ctx)
-    prods = {p["sku"]: p for p in ctx.get("products", [])}
-    ads_ = [a for a in ctx.get("advertising", []) if a.get("status") == "active"]
-    out: list[dict] = []
-    add = lambda **k: out.append({"sku": "", "platform": "", **k})
-    if section in ("causal", "actions"):
-        for p in prods.values():
-            if p["status"] != "active":
-                continue
-            running = [a for a in ads_ if a["sku"] == p["sku"]]
-            if p["stock"] <= 0:
-                add(title=f"Restock {p['name']} now", priority="high", kind="restock", sku=p["sku"],
-                    why=f"It is out of stock, so orders have stopped" + (f" while {len(running)} ads still cost money." if running else "."),
-                    action=f"Add stock in Inventory" + (" and pause its ads until it arrives." if running else "."))
-            elif p["days_of_cover"] < 7:
-                add(title=f"Reorder {p['name']}", priority="high" if p["days_of_cover"] < 4 else "medium", kind="restock", sku=p["sku"],
-                    why=f"Only {p['stock']} left, about {p['days_of_cover']} days at {p['daily_sales']} a day.",
-                    action=f"Reorder about {max(0, round(p['daily_sales'] * 21 - p['stock']))} units to cover 3 weeks.")
-        for a in ads_:
-            p = prods.get(a["sku"])
-            if p and (p["status"] != "active" or p["stock"] <= 0):
-                add(title=f"Pause {a['product']} ad on {a['platform']}", priority="high", kind="pause_ad", sku=a["sku"], platform=a["platform"],
-                    why=f"The ad spends ₹{a['daily_budget']:,.0f} a day but the product cannot be sold right now.",
-                    action="Pause this ad until the product is back on sale.")
-            elif a.get("avg_rating") and a["avg_rating"] < 3.8 and a.get("review_count", 0) >= 5:
-                add(title=f"Fix reviews for {a['product']} on {a['platform']}", priority="medium", kind="fix_reviews", sku=a["sku"], platform=a["platform"],
-                    why=f"It is rated {a['avg_rating']} stars from {a['review_count']} reviews, which puts buyers off.",
-                    action="Read the reviews, fix the main complaint, and update the ad or listing.")
-            if not a.get("connected"):
-                add(title=f"Connect {a['platform']}", priority="low", kind="other", platform=a["platform"],
-                    why=f"{a['product']} has an ad on {a['platform']} but the account is not connected, so nothing syncs.",
-                    action="Connect the account on the Connected Platforms page.")
-    if section in ("poas", "actions"):
-        scored = [(r, a) for a in ads_ if a.get("connected") and (r := _profit_per_rupee(a)) is not None]
-        scored.sort(key=lambda x: x[0])
-        if scored:
-            worst_r, worst = scored[0]
-            if worst_r < 1:
-                add(title=f"Cut the {worst['product']} ad on {worst['platform']}", priority="high", kind="pause_ad" if worst_r < 0.6 else "lower_budget",
-                    sku=worst["sku"], platform=worst["platform"],
-                    why=f"It makes only ₹{worst_r} of profit for every ₹1 of ads, so it loses money.",
-                    action="Pause it." if worst_r < 0.6 else "Lower its daily budget by a quarter and try a new picture or video.")
-            best_r, best = scored[-1]
-            bp = prods.get(best["sku"])
-            if best_r > 1.5 and bp and bp["days_of_cover"] >= 14:
-                add(title=f"Spend more on {best['product']} on {best['platform']}", priority="medium", kind="raise_budget",
-                    sku=best["sku"], platform=best["platform"],
-                    why=f"It earns ₹{best_r} profit for every ₹1 of ads and has {bp['days_of_cover']} days of stock.",
-                    action=f"Raise its daily budget from ₹{best['daily_budget']:,.0f} by about a quarter.")
-            elif best_r > 1.5 and bp:
-                add(title=f"Restock before boosting {best['product']}", priority="medium", kind="restock", sku=best["sku"],
-                    why=f"Its {best['platform']} ad earns ₹{best_r} per ₹1, but only {bp['days_of_cover']} days of stock are left.",
-                    action="Reorder first, then raise the ad budget.")
-        elif section == "poas":
-            add(title="No ad results yet", priority="low", kind="other",
-                why="There are no running ads on connected accounts with spend yet.",
-                action="Connect your accounts and post an ad to start measuring profit.")
-    if not out:
-        add(title="Nothing urgent", priority="low", kind="other", why="Stock, ads and ratings all look healthy right now.",
-            action="Check back later or post a new ad to grow sales.")
-    order = {"high": 0, "medium": 1, "low": 2}
-    seen, uniq = set(), []
-    for x in sorted(out, key=lambda x: order.get(x["priority"], 2)):
-        k = (x["kind"], x["sku"], x["platform"])
-        if k not in seen:
-            seen.add(k)
-            uniq.append(x)
-    return uniq[:5]
-
-
-def get_suggestions(section: str, ctx: dict) -> dict[str, Any]:
-    section = section if section in SUGGEST_FOCUS else "actions"
-    slim = {"products": ctx.get("products", []), "advertising": ctx.get("advertising", []),
-            "connected_platforms": ctx.get("connected_platforms", [])}
-    prompt = (
-        f"Give 3 to 5 specific suggestions about {SUGGEST_FOCUS[section]}. Use the real numbers. "
-        "Profit per rupee of ads = orders x (price - cost) / spend; below 1 loses money. "
-        "Only suggest pause_ad, raise_budget or lower_budget for ads that exist with that sku and platform. "
-        "Use empty strings for sku or platform when not needed.\n" + _json(slim)
-    )
-    data = _generate("suggest-" + section, prompt, SuggestionList, 0.3)
-    items = (data or {}).get("suggestions") or []
-    if items:
-        valid_sku = {p["sku"] for p in slim["products"]}
-        valid_ad = {(a["sku"], a["platform"]) for a in slim["advertising"]}
-        for it in items:
-            it["priority"] = it.get("priority") if it.get("priority") in ("high", "medium", "low") else "medium"
-            if it.get("kind") not in KINDS or it.get("sku") not in valid_sku:
-                it["kind"] = "other" if it.get("sku") not in valid_sku else it.get("kind", "other")
-            if it["kind"] in ("pause_ad", "raise_budget", "lower_budget") and (it.get("sku"), it.get("platform")) not in valid_ad:
-                it["kind"] = "other"
-        return {"section": section, "suggestions": items[:5], "source": "gemini"}
-    return {"section": section, "suggestions": _rule_suggestions(section, ctx), "source": "rules"}
 
 
 # ---------- Page-aware tips (pop-up that changes with the sidebar section) ----------
@@ -638,6 +495,6 @@ def get_section_tip(section: str, context_data: dict) -> dict[str, Any]:
     )
     data = _generate("tip-" + section, prompt, SectionTip, 0.4)
     if data:
-        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "gemini"}
+        return {"section": section, "title": data["title"], "tip": data["tip"], "source": "groq"}
     title, tip = _TIPS.get(section, _TIPS["overview"])
     return {"section": section, "title": title, "tip": tip, "source": "fallback"}
