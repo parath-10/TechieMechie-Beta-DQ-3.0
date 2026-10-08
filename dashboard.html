@@ -323,13 +323,26 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
 @keyframes rowIn{0%{background:rgba(63,182,139,.35);transform:translateY(-6px);opacity:0}100%{background:transparent;transform:none;opacity:1}}
  .row-new td{animation:rowIn 1.8s ease-out}
+
+ .skel{border-radius:8px;background:linear-gradient(90deg,rgba(138,148,142,.10),rgba(138,148,142,.26),rgba(138,148,142,.10));background-size:200% 100%;animation:skel 1.3s linear infinite}
+ @keyframes skel{to{background-position:-200% 0}}
+ @media(max-width:767px){
+  .side{position:fixed!important;top:0;bottom:0;left:0;z-index:60!important;width:272px!important;max-width:86vw;transform:translateX(-105%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  .side.open{transform:none;box-shadow:0 0 60px rgba(0,0,0,.7)}
+  .pop{position:fixed!important;left:12px;right:12px;top:68px;width:auto!important}
+  main{overflow-x:hidden}
+  main table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .card{min-width:0}
+  .btn{min-height:40px}
+ }
 </style>
 </head>
 <body x-data="nexus()" x-init="init()" x-cloak class="h-screen flex overflow-hidden">
 <div class="bgl" id="bgl" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orbit"></div><div class="orbit orbit2"></div><div class="dots"></div><div class="spot"></div><div class="white-balls"></div></div>
 <div class="c-ring" id="cRing"></div><div class="c-dot" id="cDot"></div>
 
-<aside class="side w-60 shrink-0 border-r border-line flex flex-col">
+<div x-show="navOpen" x-transition.opacity x-cloak class="fixed inset-0 bg-black/60 md:hidden" style="z-index:55" @click="navOpen=false" aria-hidden="true"></div>
+<aside class="side w-60 shrink-0 border-r border-line flex flex-col" :class="navOpen&&'open'" @keydown.escape.window="navOpen=false">
   <div class="px-5 h-16 flex items-center border-b border-line">
     <a href="index.html" class="flex items-center gap-3" aria-label="Nexus home" title="Back to home">
     <svg viewBox="0 0 32 32" class="logo w-9 h-9 shrink-0" fill="none" aria-hidden="true"><rect x="4" y="22" width="10" height="5" rx="1.5" fill="#3a3f45"/><rect x="18" y="22" width="10" height="5" rx="1.5" fill="#3a3f45"/><rect x="7" y="12" width="18" height="11" rx="2" fill="#e8a020"/><rect x="13" y="9" width="6" height="4" rx="1" fill="#c08018"/><rect x="9" y="4" width="14" height="7" rx="2" fill="#d09018"/><g class="eye"><circle cx="12.5" cy="7.5" r="2.6" fill="#7ec8e8"/><circle class="pupil" cx="12.5" cy="7.5" r="1.1" fill="#1a2030"/></g><g class="eye"><circle cx="19.5" cy="7.5" r="2.6" fill="#7ec8e8"/><circle class="pupil" cx="19.5" cy="7.5" r="1.1" fill="#1a2030"/></g></svg>
@@ -339,7 +352,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   <nav class="py-2 flex-1 overflow-y-auto">
     <template x-for="(n,idx) in nav" :key="n.id"><div class="nav-wrap" :style="'--n:'+idx">
       <div x-show="idx===0||nav[idx-1].g!==n.g" class="nav-h" x-text="n.g"></div>
-      <button class="nav" :class="view===n.id&&'on'" @click="view=n.id">
+      <button class="nav" :class="view===n.id&&'on'" @click="view=n.id;navOpen=false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="n.i"/></svg>
         <span class="flex-1" x-text="n.label"></span>
         <span x-show="n.id==='actions'&&pending" class="badge-pulse text-[11px] font-semibold bg-verm text-white rounded-full min-w-5 h-5 px-1.5 grid place-items-center" x-text="pending"></span>
@@ -349,14 +362,15 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 </aside>
 
 <div class="content flex-1 flex flex-col min-w-0">
-  <header class="topbar h-16 shrink-0 flex items-center gap-4 px-6 relative z-30">
+  <header class="topbar h-16 shrink-0 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 relative z-30">
+    <button class="icon-btn md:hidden shrink-0" @click="navOpen=true" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <span class="scan" aria-hidden="true"></span><span class="sprog" id="sprog" aria-hidden="true"></span>
     <div class="min-w-0"><div class="text-[11px] text-mute leading-none">Nexus</div><div class="text-[17px] font-semibold text-white leading-tight mt-1" x-text="current.label" x-effect="view;$el.classList.remove('title-in');void $el.offsetWidth;$el.classList.add('title-in')"></div></div>
     <div class="ml-auto flex items-center gap-2.5">
       <div class="relative" x-data="{conn:false}" @click.outside="conn=false" @keydown.escape.window="conn=false">
         <button class="pill" @click="conn=!conn" :aria-expanded="conn" aria-label="Connection status">
           <span class="dot" :class="online===true&&!warn?'bg-emer':online===null?'bg-mute':'bg-amber-400'"></span>
-          <span x-text="online===true?(rt.up?'Live · streaming':'Live data'):online===false?'Sample data':'Connecting…'"></span>
+          <span class="hidden sm:inline" x-text="online===true?(rt.up?'Live · streaming':'Live data'):online===false?'Sample data':'Connecting…'"></span>
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-mute transition-transform" :class="conn&&'rotate-180'" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div x-show="conn" x-transition.origin.top.right class="pop">
@@ -371,7 +385,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
           <div x-show="warn" class="mt-3 text-xs text-amber-300 bg-amber-400/10 border border-amber-400/25 rounded-lg p-2.5 leading-relaxed flex gap-2"><span class="flex-1" x-text="warn"></span><button class="underline shrink-0" @click="warn=''">Clear</button></div>
         </div>
       </div>
-      <span x-show="me.role==='demo'" class="pill text-amber-300" title="The demo account can view everything but cannot change anything">View-only demo</span>
+      <span x-show="me.role==='demo'" class="pill text-amber-300 hidden sm:inline-flex" title="The demo account can view everything but cannot change anything">View-only demo</span>
       <div class="relative" x-data="{um:false}" @click.outside="um=false" @keydown.escape.window="um=false" x-show="me.email">
         <button class="pill" @click="um=!um" :aria-expanded="um" aria-label="Account">
           <span class="w-5 h-5 rounded-full bg-raise text-[11px] font-semibold flex items-center justify-center text-white" x-text="(me.email||'?')[0].toUpperCase()"></span>
@@ -382,6 +396,19 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
           <button class="btn border border-line text-white w-full mt-3 justify-center" @click="logout()">Log out</button>
         </div>
       </div>
+      <div class="relative" x-data="{ex:false}" @click.outside="ex=false" @keydown.escape.window="ex=false">
+        <button class="pill" @click="ex=!ex" :aria-expanded="ex" aria-label="Export a report" title="Export a report">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><span class="hidden sm:inline">Export</span></button>
+        <div x-show="ex" x-transition.origin.top.right class="pop" x-cloak>
+          <div class="text-sm font-semibold text-white">Report for the brand owner</div>
+          <div class="text-xs text-mute mt-1">One page with sales, profit, stock, ads and the decisions made.</div>
+          <a :href="backend.replace(/\/+$/,'')+'/report?print=1'" target="_blank" rel="noopener" class="btn btn-p w-full justify-center mt-3" @click="ex=false">Download PDF report</a>
+          <div class="text-xs text-mute mt-4 mb-1.5">Spreadsheets (CSV, open in Excel or Google Sheets)</div>
+          <div class="grid grid-cols-2 gap-2">
+            <a :href="backend.replace(/\/+$/,'')+'/api/export/products'" download class="btn border border-line text-white justify-center" @click="ex=false">Products</a>
+            <a :href="backend.replace(/\/+$/,'')+'/api/export/ads'" download class="btn border border-line text-white justify-center" @click="ex=false">Ads</a>
+            <a :href="backend.replace(/\/+$/,'')+'/api/export/orders'" download class="btn border border-line text-white justify-center" @click="ex=false">Orders</a>
+            <a :href="backend.replace(/\/+$/,'')+'/api/export/decisions'" download class="btn border border-line text-white justify-center" @click="ex=false">Decisions</a></div></div></div>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to light theme" title="Switch theme">
         <span class="theme-icon" aria-hidden="true">🌙</span>
       </button>
@@ -393,7 +420,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   </header>
 
 
-  <main class="flex-1 overflow-y-auto p-6 space-y-6">
+  <main class="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
 
   <!-- OVERVIEW -->
   <section x-show="view==='overview'" class="space-y-6 max-w-[1400px]">
@@ -540,6 +567,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Your products and their stats</div><div class="text-xs text-mute">Edit cost or selling price directly in the table. Stats update straight away.</div></div>
       <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Cost to make (₹)</th><th>Selling price (₹)</th><th>Profit per unit</th><th>Margin</th><th>Units sold</th><th>Sales</th><th>Total profit</th><th>Status</th><th></th></tr></thead><tbody>
+        <template x-for="i in (booting&&!products.length?3:0)" :key="'sk'+i"><tr><td colspan="10"><div class="skel h-9"></div></td></tr></template>
         <template x-for="p in products" :key="p.sku"><tr>
           <td><div x-text="p.name"></div><div class="text-xs text-mute" x-text="p.sku+' · '+(p.category||'General')"></div></td>
           <td><input type="number" min="0" :value="p.cost" @change="update(p,{cost:+$event.target.value})" class="w-24 px-2 py-1 text-sm" :aria-label="'Cost to make '+p.name"></td>
@@ -551,7 +579,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
           <td :class="ps(p).profit<0?'text-verm':'text-emer'" x-text="rs(ps(p).profit)"></td>
           <td><button class="text-xs px-2 py-1 rounded border" :class="p.status==='active'?'border-emer text-emer':'border-line text-mute'" @click="update(p,{status:p.status==='active'?'paused':'active'})" x-text="p.status==='active'?'Selling':'Paused'"></button></td>
           <td class="text-right"><button class="text-xs text-mute hover:text-verm" @click="removeProduct(p)">Remove</button></td></tr></template>
-        <tr x-show="!products.length"><td colspan="10" class="text-center text-mute">No products yet. Add one above.</td></tr>
+        <tr x-show="!booting&&!products.length"><td colspan="10" class="text-center text-mute py-6">No products yet. Add your first one above and it appears here, in Inventory and in Ads.</td></tr>
       </tbody></table></div></div>
   </section>
 
@@ -576,6 +604,8 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Stock and orders by platform</div><div class="text-xs text-mute">Stock goes down by itself when an order arrives from any platform. Selling rate is worked out from those orders.</div></div>
     <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>In stock</th><th>Total orders by platform</th><th>Selling rate</th><th>Lasts</th><th>Status</th><th>Reorder for 3 weeks</th><th>Add stock</th></tr></thead><tbody>
+      <template x-for="i in (booting&&!products.length?3:0)" :key="'sk'+i"><tr><td colspan="8"><div class="skel h-9"></div></td></tr></template>
+      <tr x-show="!booting&&!products.length"><td colspan="8" class="text-center text-mute py-6">No products yet. Add one in Products and its stock shows up here.</td></tr>
       <template x-for="p in products" :key="p.sku"><tr :class="p.status!=='active'&&'opacity-60'">
         <td><div x-text="p.name"></div><div class="text-xs text-mute" x-text="p.status==='active'?p.sku:p.sku+' · paused, no orders'"></div></td>
         <td class="font-medium" :class="flash[p.sku]&&'text-amber-300'" x-text="fmt(p.stock)"></td>
@@ -605,6 +635,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
         <button class="btn border border-line text-mute hover:text-white" :disabled="adsBusy" @click="simulateDay()" title="Adds one day of views, orders and reviews to every running ad">Simulate 1 day (demo)</button></div>
     </div>
     <div x-show="adsError" class="card p-4 text-sm text-amber-300" x-text="adsError"></div>
+    <div x-show="!adsError&&!adsData.length" class="card p-6 text-sm text-mute text-center"><div x-show="booting" class="skel h-10"></div><span x-show="!booting">No products to advertise yet. Add a product first, then start its ads here.</span></div>
 
     <div x-show="!adsError" class="card">
       <button class="w-full p-4 flex items-center justify-between text-left" @click="post.open=!post.open;if(post.open&&!post.sku)post.sku=adSku||(products[0]&&products[0].sku)||''">
@@ -828,11 +859,45 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
     <table class="w-full"><thead><tr><th>Campaign</th><th>Platform</th><th>Spent</th><th>Sales per ₹1</th><th>Profit per ₹1</th><th>Advice</th></tr></thead><tbody>
     <template x-for="p in poas" :key="p.n"><tr><td x-text="p.n"></td><td class="text-mute" x-text="p.ch"></td><td x-text="p.sp"></td><td x-text="p.r.toFixed(2)"></td><td class="font-semibold" :class="p.p>=1?'text-emer':'text-verm'" x-text="p.p.toFixed(2)"></td><td x-text="p.p>=1.3?'Spend more':p.p>=1?'Keep as is':'Reduce or stop'"></td></tr></template></tbody></table></section>
 
+  <section x-show="view==='poas'" class="card">
+    <div class="p-4 border-b border-line flex flex-wrap items-end gap-3"><div class="mr-auto"><div class="font-medium">What if I change a budget?</div><div class="text-xs text-mute">Drag the slider to see orders and profit at a different daily budget. Extra budget brings extra orders, but each extra ₹1 brings fewer than the one before.</div></div>
+      <label class="text-xs text-mute">Product<select x-model="wi.sku" @change="wiPickSku()" class="block mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white min-w-36"><template x-for="p in adsData.filter(x=>x.ads.length)" :key="p.sku"><option :value="p.sku" x-text="p.name" :selected="p.sku===wi.sku"></option></template></select></label>
+      <label class="text-xs text-mute">Platform<select x-model="wi.plat" @change="wiLoad()" class="block mt-1 bg-ink border border-line rounded px-2 py-1.5 text-sm text-white min-w-32"><template x-for="pl in wiPlats()" :key="pl"><option :value="pl" x-text="pl" :selected="pl===wi.plat"></option></template></select></label></div>
+    <div x-show="wi.loading" class="p-4"><div class="skel h-48"></div></div>
+    <div x-show="wi.err&&!wi.loading" class="p-6 text-sm text-amber-300" x-text="wi.err"></div>
+    <div x-show="!wi.data&&!wi.loading&&!wi.err" class="p-8 text-sm text-mute text-center">No ads are running yet. Start one in Ads, then come back to try different budgets here.</div>
+    <template x-if="wi.data&&!wi.loading&&wiNow()"><div class="p-4 grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 min-w-0"><div x-html="wiSvg()" class="rounded border border-line p-2"></div>
+        <div class="text-[11px] text-mute mt-1">Line = profit per day after ad costs. Grey marker = today's budget, orange = the slider, green = best budget on this curve.</div></div>
+      <div class="space-y-3">
+        <div><div class="flex items-baseline justify-between"><span class="text-xs text-mute">Daily budget</span><span class="text-xl font-semibold" x-text="rs(+wi.b)"></span></div>
+          <input type="range" min="0" :max="wi.data.max_budget" step="50" x-model.number="wi.b" class="w-full mt-1 accent-[#ff5a3c]" aria-label="Daily budget">
+          <div class="flex gap-2 mt-1 text-xs"><button class="px-2 py-1 rounded border border-line text-mute hover:text-white" @click="wi.b=wi.data.budget">Today: <span x-text="rs(wi.data.budget)"></span></button><button class="px-2 py-1 rounded border border-emer text-emer" @click="wi.b=wi.data.best_budget">Best: <span x-text="rs(wi.data.best_budget)"></span></button></div></div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="rounded border border-line p-2"><div class="text-xs text-mute">Orders a day</div><div class="font-semibold" x-text="wiNow().units.toFixed(1)"></div></div>
+          <div class="rounded border border-line p-2"><div class="text-xs text-mute">Sales a day</div><div class="font-semibold" x-text="rs(wiNow().revenue)"></div></div>
+          <div class="rounded border border-line p-2"><div class="text-xs text-mute">Profit a day</div><div class="font-semibold" :class="wiNow().profit>=0?'text-emer':'text-verm'" x-text="rs(wiNow().profit)"></div></div>
+          <div class="rounded border border-line p-2"><div class="text-xs text-mute">Compared with today</div><div class="font-semibold" :class="wiNow().delta>=0?'text-emer':'text-verm'" x-text="(wiNow().delta>=0?'+':'−')+rs(Math.abs(wiNow().delta))"></div></div></div>
+        <div x-show="wiNow().cover<7" class="text-xs text-amber-300">At this budget stock would last about <span x-text="wiNow().cover"></span> days. Reorder before raising it.</div>
+        <div x-show="wi.data.status!=='active'" class="text-xs text-mute">This ad is <span x-text="wi.data.status"></span> now. The numbers show what it would do if it were running.</div>
+        <button class="btn btn-p w-full justify-center" :disabled="me.role==='demo'||Math.round(wi.b)===Math.round(wi.data.budget)" @click="wiApply()" x-text="me.role==='demo'?'View-only demo account':'Apply this budget'"></button>
+      </div></div></template>
+  </section>
+
   <!-- THINGS TO DO -->
-  <section x-show="view==='actions'" class="card"><div class="p-4 border-b border-line flex items-center justify-between"><div><div class="font-medium">Things to do</div><div class="text-xs text-mute">Suggested changes. Nothing happens until you approve it.</div></div><button class="btn btn-g" @click="loadActions()">Get new suggestions</button></div>
+  <section x-show="view==='actions'" class="card"><div class="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3"><div><div class="font-medium">Things to do</div><div class="text-xs text-mute">Worked out from your live numbers. Nothing happens until you approve it. After that Nexus measures what really happened and compares it with its prediction.</div></div>
+    <div class="flex flex-wrap items-center gap-2"><button class="btn border border-line text-mute hover:text-white" :disabled="adsBusy" @click="simulateDay().then(()=>loadActions(true))" title="Adds one day of orders now, so results can be measured straight away"><span x-show="adsBusy" class="spin"></span>Fast-forward 1 day (demo)</button><button class="btn btn-g" @click="loadActions()">Get new suggestions</button></div></div>
     <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Change</th><th>Where</th><th>Amount</th><th>Expected result</th><th>How sure</th><th></th></tr></thead><tbody>
-    <template x-for="a in actions" :key="a.id"><tr><td x-text="a.type==='pause'?'Stop an ad':'Move budget'"></td><td x-text="a.target"></td><td x-text="a.change"></td><td class="text-emer" x-text="a.impact"></td><td x-text="pct(a.confidence)"></td>
-      <td class="text-right"><span x-show="a.status==='done'" class="text-emer text-sm">Done</span><button x-show="a.status!=='done'" class="btn btn-g" :disabled="a.status==='running'" @click="execute(a)"><span x-show="a.status==='running'" class="spin"></span><span x-text="a.status==='running'?'Applying…':'Approve and apply'"></span></button></td></tr></template></tbody></table></div></section>
+    <template x-for="i in (actionsLoading?3:0)" :key="'sk'+i"><tr><td colspan="6"><div class="skel h-9"></div></td></tr></template>
+    <tr x-show="!actionsLoading&&!actions.length"><td colspan="6" class="text-center text-mute py-8"><div class="text-emer text-lg">All clear</div>Ads and stock look healthy, so there is nothing to change right now. New suggestions appear here as orders come in.</td></tr>
+    <template x-for="a in actions" :key="a.id"><tr class="align-top"><td x-text="a.type==='pause'?'Stop an ad':a.type==='restock'?'Reorder stock':'Change budget'"></td><td x-text="a.target"></td><td x-text="a.change"></td>
+      <td class="text-emer max-w-xs whitespace-normal"><div x-text="a.impact"></div>
+        <template x-if="a.result"><div class="mt-2 text-xs rounded border p-2 leading-relaxed text-gray-300 whitespace-normal" :class="a.result.status==='verified'?'border-emer/50':'border-amber-400/40'">
+          <div class="flex items-center gap-2 mb-1"><span class="font-semibold" :class="a.result.status==='verified'?'text-emer':'text-amber-300'" x-text="a.result.status==='verified'?'Result checked':'Learning…'"></span><span x-show="a.result.accuracy!=null" class="text-mute" x-text="'accuracy '+Math.round(a.result.accuracy*100)+'%'"></span></div>
+          <div x-text="a.result.summary"></div>
+          <div x-show="a.result.status==='learning'&&a.result.progress!=null" class="h-1 rounded bg-line mt-2 overflow-hidden"><div class="h-1 bg-amber-400" :style="'width:'+Math.round((a.result.progress||0)*100)+'%'"></div></div></div></template></td>
+      <td x-text="pct(a.confidence)"></td>
+      <td class="text-right"><template x-if="a.status==='done'"><div><span class="text-emer text-sm">Applied</span><div class="text-xs text-mute" x-text="a.applied_at"></div></div></template><button x-show="a.status!=='done'" class="btn btn-g" :disabled="a.status==='running'" @click="execute(a)"><span x-show="a.status==='running'" class="spin"></span><span x-text="a.status==='running'?'Applying…':'Approve and apply'"></span></button></td></tr></template></tbody></table></div></section>
   <!-- TIMELINE & 24/7 LOG -->
   <section x-show="view==='timeline'" class="card">
     <div class="p-4 border-b border-line flex flex-wrap items-end gap-4">
@@ -986,8 +1051,8 @@ function nexus(){
  return{
   P,nav:[{id:'overview',label:'Overview',g:'Insights',i:'M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z'},{id:'causal',label:'Problems to Watch',g:'Insights',i:'M12 3l10 18H2zM12 10v4M12 17.5v.01'},{id:'poas',label:'Profit Check',g:'Insights',i:'M3 17l6-6 4 4 8-8M15 7h6v6'},{id:'platforms',label:'Platform Analysis',g:'Insights',i:'M4 20V10M10 20V4M16 20v-7M2 20h20'},{id:'products',label:'Products',g:'Manage',i:'M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8M12 13v8'},{id:'inventory',label:'Inventory',g:'Manage',i:'M3 7h18v13H3zM3 7l2-4h14l2 4M9 11h6'},{id:'ads',label:'Ads',g:'Manage',i:'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM15 9a3 3 0 010 6M18 6a7 7 0 010 12'},{id:'actions',label:'Things To Do',g:'Workspace',i:'M9 6h11M9 12h11M9 18h11M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2'},{id:'ingestion',label:'Connected Platforms',g:'Workspace',i:'M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1'},{id:'timeline',label:'Time Log & Monthly',g:'Workspace',i:'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2'}],
   view:'overview',plat:'Instagram',backend:(location.protocol.startsWith('http')&&!['5500','5501','5173','3000','8080'].includes(location.port))?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
-  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},rt:{up:false,tries:0,mode:'connecting'},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},me:{},aiMeta:{},aiBusy:false,
-  diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:JSON.parse(JSON.stringify(MOCK.actions)),
+  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},rt:{up:false,tries:0,mode:'connecting'},navOpen:false,actionsLoading:true,booting:true,wi:{sku:'',plat:'',data:null,b:0,loading:false,err:''},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},me:{},aiMeta:{},aiBusy:false,
+  diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:[],
   chat:{open:false,input:'',busy:false,msgs:[{me:false,t:"Hi! Ask me anything about your products, sales, profit, stock, ads or platforms."}]},
   kpis:[{l:'Profit on ad spend',v:'+38.2%',s:'better than last week',c:'text-emer'},{l:'Reply speed',v:'<450ms',s:'time to get an answer',c:'text-white'},{l:'Orders matched',v:'99.8%',s:'orders checked against real sales',c:'text-emer'},{l:'Safety checks on',v:'7',s:'2 stepped in today',c:'text-verm'}],
   sources:[{n:'Meta Ads',rec:'184,220',sync:'2 min ago',ok:true},{n:'TikTok Ads',rec:'96,410',sync:'3 min ago',ok:true},{n:'Shopify',rec:'41,905',sync:'1 min ago',ok:true},{n:'Amazon',rec:'22,318',sync:'14 min ago',ok:false}],
@@ -1032,11 +1097,11 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    this.rebuildPlat();this.$watch('adsData',()=>this.rebuildPlat());this.$watch('products',()=>this.rebuildPlat());this.$watch('orders.byProduct',()=>this.rebuildPlat());
    try{this.backend=localStorage.getItem('nexus_backend')||this.backend}catch(e){}
    Chart.defaults.color='#8a948e';Chart.defaults.borderColor='#1e262c';Chart.defaults.font.family="'Onest',sans-serif";this.ping();setInterval(()=>{if(!this.rt.up)this.ping()},15000);
-   this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);this.connectRt();
-   this.pull('/api/actions',d=>{if(Array.isArray(d)&&d.length)this.actions=d},MOCK.actions);
+   this.loadProducts().finally(()=>this.booting=false).then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);this.connectRt();
+   this.pull('/api/actions',d=>{if(Array.isArray(d))this.actions=d;this.actionsLoading=false},MOCK.actions);
    this.loadAiAlerts();this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT);
    setTimeout(()=>this.showTipOnce(),1500);this.loadAiMeta();this.loadMe();
-   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{redraw();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
+   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{this.navOpen=false;if(v==='actions')this.loadActions(true);if(v==='poas')this.wiInit();redraw();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
    this.pull('/api/ads/platforms',d=>{if(d&&d.ad_platforms){this.adPlatforms=d.ad_platforms;this.salesChannels=d.sales_channels;if(d.formats)this.formats=d.formats;if(d.format_support)this.formatSupport=d.format_support}},{ad_platforms:AD_PLATFORMS,sales_channels:[...AD_PLATFORMS,'Website']});this.$watch('plat',redraw);
   },
   saveUrl(){this.backend=this.backend.trim().replace(/\/+$/,'');try{localStorage.setItem('nexus_backend',this.backend)}catch(e){}},
@@ -1060,11 +1125,45 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
     this.fb.report={sentiment:d.sentiment||MOCK.feedback.sentiment,summary:d.summary||'',themes:d.themes||[],creative_feedback:d.creative_feedback||d.creativeFeedback||[]}}
    catch(e){await new Promise(r=>setTimeout(r,1000));this.fb.report=MOCK.feedback;this.fallback('the review analysis',e)}
    this.fb.loading=false},
-  async loadActions(){try{const d=await this.api('/api/actions');if(Array.isArray(d)&&d.length)this.actions=d;this.toast('Suggestions updated')}catch(e){this.actions=JSON.parse(JSON.stringify(MOCK.actions));this.fallback('suggestions',e)}},
-  async execute(a){a.status='running';
-   try{await this.api('/api/execute-action',{method:'POST',body:JSON.stringify({action_id:a.id,type:a.type,target:a.target,change:a.change})});this.toast('Done: '+a.target)}
-   catch(e){await new Promise(r=>setTimeout(r,900));this.fallback('applying changes',e);this.toast('Done (sample run): '+a.target)}
-   a.status='done'},
+  /* ---------- what-if budget slider ---------- */
+  wiInit(){const l=this.adsData.filter(p=>p.ads&&p.ads.length);if(!l.find(p=>p.sku===this.wi.sku)){this.wi.data=null;const f=l[0];this.wi.sku=f?f.sku:'';this.wi.plat=f?f.ads[0].platform:''}if(this.wi.sku&&!this.wi.data)this.wiLoad()},
+  wiPlats(){const p=this.adsData.find(x=>x.sku===this.wi.sku);return p?p.ads.map(a=>a.platform):[]},
+  wiPickSku(){this.wi.plat=this.wiPlats()[0]||'';this.wiLoad()},
+  async wiLoad(){const w=this.wi;if(!w.sku||!w.plat)return;w.loading=true;w.err='';
+   try{const d=await this.api('/api/whatif?sku='+encodeURIComponent(w.sku)+'&platform='+encodeURIComponent(w.plat));w.data=d;w.b=d.budget}
+   catch(e){w.data=null;w.err=e.status===404?'That product is not advertised on this platform yet.':'Could not load the what-if numbers. Check that the server is running.'}
+   w.loading=false},
+  wiAt(b){const c=(this.wi.data||{}).curve||[];if(!c.length)return{units:0,profit:0};b=Math.max(0,Math.min(+b||0,c[c.length-1].b));
+   for(let i=1;i<c.length;i++){if(b<=c[i].b){const p=c[i-1],q=c[i],t=(b-p.b)/((q.b-p.b)||1);return{units:p.units+(q.units-p.units)*t,profit:p.profit+(q.profit-p.profit)*t}}}return c[c.length-1]},
+  wiNow(){const d=this.wi.data;if(!d||!d.curve||!d.curve.length)return null;const x=this.wiAt(this.wi.b),cur=this.wiAt(d.budget);
+   const rate=Math.max(0,(d.product_rate||0)-cur.units+x.units);
+   return{units:x.units,revenue:x.units*d.price,profit:x.profit,delta:x.profit-cur.profit,cover:rate>0?Math.round(d.stock/rate):999}},
+  wiSvg(){const d=this.wi.data;if(!d||!d.curve||!d.curve.length)return'';
+   const W=640,H=230,L=56,R=14,T=14,B=32,c=d.curve,mx=c[c.length-1].b||1,ys=c.map(p=>p.profit),lo=Math.min(0,...ys),hi=Math.max(1,...ys),sp=(hi-lo)||1;
+   const X=b=>L+(W-L-R)*b/mx,Y=v=>T+(H-T-B)*(1-(v-lo)/sp),k=v=>Math.abs(v)>=1e5?(v/1e5).toFixed(1)+'L':Math.abs(v)>=1e3?Math.round(v/1e3)+'k':Math.round(v);
+   const path=c.map((p,i)=>(i?'L':'M')+X(p.b).toFixed(1)+' '+Y(p.profit).toFixed(1)).join(' ');
+   const cur=this.wiAt(d.budget),sel=this.wiAt(this.wi.b),best=this.wiAt(d.best_budget);
+   let g=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#3a444b" stroke-dasharray="3 4"/>`;
+   [lo,(lo+hi)/2,hi].forEach(v=>{g+=`<text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#8a948e">₹${k(v)}</text>`});
+   [0,.5,1].forEach(f=>{g+=`<text x="${X(mx*f)}" y="${H-10}" text-anchor="${f===0?'start':f===1?'end':'middle'}" font-size="11" fill="#8a948e">₹${k(mx*f)}</text>`});
+   g+=`<path d="${path} L${X(mx)} ${Y(Math.max(lo,0))} L${X(0)} ${Y(Math.max(lo,0))}Z" fill="rgba(63,182,139,.10)"/><path d="${path}" fill="none" stroke="#3fb68b" stroke-width="2.5" stroke-linejoin="round"/>`;
+   g+=`<line x1="${X(d.budget)}" x2="${X(d.budget)}" y1="${T}" y2="${H-B}" stroke="#8a948e" stroke-dasharray="4 4"/><circle cx="${X(d.budget)}" cy="${Y(cur.profit)}" r="5" fill="#8a948e"/>`;
+   g+=`<circle cx="${X(d.best_budget)}" cy="${Y(best.profit)}" r="5" fill="#3fb68b" stroke="#0a0e12" stroke-width="2"/>`;
+   g+=`<line x1="${X(this.wi.b)}" x2="${X(this.wi.b)}" y1="${T}" y2="${H-B}" stroke="#ff5a3c" stroke-width="1.5"/><circle cx="${X(this.wi.b)}" cy="${Y(sel.profit)}" r="6.5" fill="#ff5a3c" stroke="#0a0e12" stroke-width="2"/>`;
+   return`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block" role="img" aria-label="Profit per day at different daily budgets" font-family="Onest,system-ui,sans-serif">${g}</svg>`},
+  async wiApply(){const d=this.wi.data;if(!d)return;const b=Math.round(+this.wi.b);
+   try{await this.api('/api/ads',{method:'PATCH',body:JSON.stringify({sku:d.sku,platform:d.platform,daily_budget:b})});this.toast(d.platform+' budget for '+d.name+' is now '+this.rs(b)+' a day');await Promise.all([this.loadAds(),this.loadActions(true)]);this.wiLoad()}
+   catch(e){this.toast(e.detail||('Could not change the budget: '+e.message),false)}},
+  async loadActions(quiet=false){this.actionsLoading=!quiet&&!this.actions.length;
+   try{const d=await this.api('/api/actions');if(Array.isArray(d))this.actions=d;if(!quiet)this.toast('Suggestions updated')}
+   catch(e){if(!this.actions.length)this.actions=JSON.parse(JSON.stringify(MOCK.actions));this.fallback('suggestions',e)}
+   this.actionsLoading=false},
+  async execute(a){if(a.status==='running')return;const prev=a.status;a.status='running';
+   try{const d=await this.api('/api/execute-action',{method:'POST',body:JSON.stringify({action_id:a.id})});this.toast(d.message||('Done: '+a.target));
+    await Promise.all([this.loadActions(true),this.refreshProducts(),this.loadAds()])}
+   catch(e){a.status=prev;
+    if(e.status){this.toast(e.detail||('Could not apply: '+e.message),false);if(e.status===404)this.loadActions(true)}
+    else{await new Promise(r=>setTimeout(r,900));this.fallback('applying changes',e);this.toast('Done (sample run): '+a.target);a.status='done'}}},
   cover(p){return p.daily_sales>0?Math.round(p.stock/p.daily_sales):999},
   /* product stats, worked out here so they update instantly after an edit */
   ps(p){const u=Math.round((p.price-p.cost)*100)/100,n=p.units_sold||0;return{unit:u,margin:p.price?Math.round(u/p.price*100):0,revenue:Math.round(n*p.price),profit:Math.round(n*u)}},
@@ -1135,7 +1234,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    this._rf=setTimeout(async()=>{this._rf=null;
     try{await this.refreshProducts();
      if(['ads','platforms','causal','poas'].includes(this.view)){await Promise.all([this.loadAds(),this.loadPosts()])}
-     if(this.view==='overview')this.loadOverview();if(this.view==='timeline')this.loadMonthly();this.buildNotes()}catch(e){}},20000)},
+     if(this.view==='overview')this.loadOverview();if(this.view==='timeline')this.loadMonthly();if(this.view==='actions')this.loadActions(true);this.buildNotes()}catch(e){}},20000)},
   connectRt(){
    if(this._ws||this._rtStop)return;
    if(!this._rtHook){this._rtHook=true;

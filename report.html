@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus report</title>
+<style>
+:root{--ink:#16201b;--mute:#5d6a63;--line:#dfe5e1;--bg:#f4f6f4;--card:#fff;--good:#14804f;--bad:#c4281f;--warn:#9a6700;--acc:#ff5a3c}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:#0a0e12;color:#dfe7e0}
+.bar b{margin-right:auto;font-size:15px}
+.bar a,.bar button{font:inherit;font-size:13px;color:#dfe7e0;background:transparent;border:1px solid #3a4650;border-radius:8px;padding:7px 12px;text-decoration:none;cursor:pointer}
+.bar button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.bar a:hover,.bar button:hover{border-color:#8a948e}
+.page{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px;border-bottom:3px solid var(--ink);padding-bottom:12px;margin-bottom:18px}
+h1{margin:0;font-size:26px;letter-spacing:-.02em}
+.sub{color:var(--mute);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi .l{font-size:12px;color:var(--mute)}
+.kpi .v{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mute{color:var(--mute)}
+section{margin-top:22px;break-inside:avoid-page}
+h2{font-size:16px;margin:0 0 8px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+td.wrap-text{white-space:normal;min-width:220px}
+th{background:#eef2ef;font-size:12px;color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr{break-inside:avoid}
+tbody tr:last-child td{border-bottom:0}
+.empty{padding:18px;text-align:center;color:var(--mute);font-size:13px}
+.note{margin-top:22px;padding:10px 12px;border:1px dashed var(--warn);border-radius:8px;color:var(--warn);font-size:12.5px}
+.state{padding:80px 16px;text-align:center;color:var(--mute)}
+.spin{display:inline-block;width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes s{to{transform:rotate(360deg)}}
+footer{margin-top:26px;color:var(--mute);font-size:12px;text-align:center}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}h1{font-size:22px}.kpi .v{font-size:19px}}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff;font-size:12px}
+  .bar{display:none}
+  .page{max-width:none;padding:0}
+  .wrap{overflow:visible;border-radius:6px}
+  th,td{padding:4px 6px;white-space:normal}
+  td.wrap-text{min-width:0}
+  section{break-inside:auto}
+  h2{break-after:avoid}
+}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>Nexus report</b>
+  <button class="primary" id="pdf" type="button" disabled>Download PDF</button>
+  <a href="/api/export/products">Products CSV</a>
+  <a href="/api/export/ads">Ads CSV</a>
+  <a href="/api/export/orders">Orders CSV</a>
+  <a href="/api/export/decisions">Decisions CSV</a>
+  <a href="/dashboard">Back to dashboard</a>
+</div>
+<main class="page" id="page"><div class="state"><span class="spin"></span>Preparing your report…</div></main>
+
+<script>
+(function(){
+  const page=document.getElementById('page'),pdf=document.getElementById('pdf');
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const inr=n=>(n<0?'−':'')+'₹'+Math.round(Math.abs(n||0)).toLocaleString('en-IN');
+  const num=n=>Math.round(n||0).toLocaleString('en-IN');
+  const cls=n=>n>0?'good':n<0?'bad':'';
+  const table=(head,rows,empty)=>rows.length?`<div class="wrap"><table><thead><tr>${head.map(h=>`<th class="${h[1]?'n':''}">${esc(h[0])}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`:`<div class="wrap"><div class="empty">${esc(empty)}</div></div>`;
+  function fail(msg){page.innerHTML=`<div class="state"><b>${esc(msg)}</b><br><br><button onclick="location.reload()">Try again</button></div>`}
+
+  fetch('/api/report',{credentials:'same-origin'}).then(r=>{
+    if(r.status===401){location.href='/?login=1';return null}
+    if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{
+    if(!d)return;
+    document.title='Nexus report '+d.generated.replace(/[^\w]+/g,'-');
+    const k=d.kpis;
+    const prod=d.products.map(p=>`<tr><td>${esc(p.name)}<div class="mute" style="font-size:11px">${esc(p.sku)}${p.status!=='active'?' · paused':''}</div></td><td class="n">${inr(p.price)}</td><td class="n">${inr(p.cost)}</td><td class="n">${p.margin_pct}%</td><td class="n">${num(p.stock)}</td><td class="n ${p.days_of_cover<14&&p.status==='active'?'bad':''}">${p.days_of_cover>=999?'no sales':p.days_of_cover+' days'}</td><td class="n">${num(p.units_sold)}</td><td class="n">${inr(p.revenue)}</td><td class="n ${cls(p.total_profit)}">${inr(p.total_profit)}</td></tr>`);
+    const adr=d.ads.map(a=>`<tr><td>${esc(a.product)}</td><td>${esc(a.platform)}</td><td>${esc(a.status)}</td><td class="n">${inr(a.daily_budget)}</td><td class="n">${num(a.orders)}</td><td class="n">${inr(a.sales)}</td><td class="n">${inr(a.spend)}</td><td class="n">${a.spend?(a.sales/a.spend).toFixed(1)+'x':'-'}</td><td class="n ${cls(a.profit_after_ads)}">${inr(a.profit_after_ads)}</td></tr>`);
+    const todo=d.todo.map(a=>`<tr><td>${esc(a.target)}</td><td class="wrap-text">${esc(a.change)}</td><td class="wrap-text">${esc(a.impact)}</td><td class="n">${Math.round((a.confidence||0)*100)}%</td></tr>`);
+    const dec=d.decisions.map(a=>`<tr><td>${esc(a.applied_at)}</td><td>${esc(a.target)}</td><td class="wrap-text">${esc(a.change)}</td><td class="wrap-text">${esc(a.result?a.result.summary:'')}</td></tr>`);
+    const ord=d.orders.map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.id)}</td><td>${esc(o.product)}</td><td>${esc(o.platform)}</td><td class="n">${num(o.quantity)}</td><td class="n">${inr(o.amount)}</td></tr>`);
+    page.innerHTML=`
+    <header class="top"><div><h1>${esc(d.brand)}: performance report</h1><div class="sub">Ads, sales and stock in one view · Generated ${esc(d.generated)}</div></div><div class="sub">Nexus · Team TechieMechie</div></header>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Sales</div><div class="v">${inr(k.revenue)}</div></div>
+      <div class="kpi"><div class="l">Profit before ads</div><div class="v ${cls(k.profit)}">${inr(k.profit)}</div></div>
+      <div class="kpi"><div class="l">Ad spend</div><div class="v">${inr(k.ad_spend)}</div></div>
+      <div class="kpi"><div class="l">Profit after ads</div><div class="v ${cls(k.profit_after_ads)}">${inr(k.profit_after_ads)}</div></div>
+    </div>
+    <div class="sub">${num(k.units)} units sold across ${k.products} products · ${k.at_risk?`<b class="bad">${k.at_risk} product${k.at_risk>1?'s':''} with under 14 days of stock</b>`:'<span class="good">No product is close to running out</span>'}</div>
+    <section><h2>What to do next</h2>${table([['Where'],['Change'],['Expected result'],['How sure',1]],todo,'Nothing to change right now. Ads and stock look healthy.')}</section>
+    <section><h2>Decisions already made and how they turned out</h2>${table([['When'],['Where'],['Change'],['Result']],dec,'No suggestion has been approved yet. Approve one in Things To Do and the measured result appears here.')}</section>
+    <section><h2>Products and stock</h2>${table([['Product'],['Price',1],['Cost',1],['Margin',1],['In stock',1],['Stock lasts',1],['Units sold',1],['Sales',1],['Profit',1]],prod,'No products yet.')}</section>
+    <section><h2>Ads by platform</h2>${table([['Product'],['Platform'],['Status'],['Daily budget',1],['Orders',1],['Sales',1],['Ad spend',1],['Sales per ₹1',1],['Profit after ads',1]],adr,'No ads are running yet.')}</section>
+    <section><h2>Latest orders</h2>${table([['Time'],['Order'],['Product'],['Platform'],['Qty',1],['Amount',1]],ord,'No orders yet.')}</section>
+    ${d.simulated?'<div class="note">Demo data: orders, views and ad numbers in this prototype are simulated until real platform accounts are connected.</div>':''}
+    <footer>Report created by Nexus, the ad decision engine for D2C brands.</footer>`;
+    pdf.disabled=false;
+    if(new URLSearchParams(location.search).has('print'))setTimeout(()=>window.print(),500);
+  }).catch(()=>fail('The report could not be loaded. Check your connection and try again.'));
+  pdf.addEventListener('click',()=>window.print());
+})();
+</script>
+</body>
+</html>

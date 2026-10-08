@@ -30,10 +30,15 @@ from typing import Any
 COOKIE = "nexus_session"
 DEMO_EMAIL = "demo@nexus.local"
 DEMO_PASSWORD = "Nexus123!"
+# View-only demo logins (shown on the login page for judges and visitors)
+DEMO_ACCOUNTS = [(DEMO_EMAIL, DEMO_PASSWORD), ("manager@nexus.com", "nexus@123")]
 SESSION_DAYS = float(os.getenv("SESSION_DAYS", "7") or 7)
 
 # Requests the read-only demo account may still make (they change nothing important)
 DEMO_ALLOWED_WRITES = {"/api/orders/sync", "/api/chat", "/api/analyze-feedback", "/api/logout"}
+if os.getenv("DEMO_CAN_APPROVE", "1").strip() != "0":
+    # Let judges try the headline feature: approve a suggestion and fast-forward a day. Set DEMO_CAN_APPROVE=0 to block.
+    DEMO_ALLOWED_WRITES |= {"/api/execute-action", "/execute-action", "/api/ads/simulate-day"}
 
 
 def demo_enabled() -> bool:
@@ -97,10 +102,11 @@ def check_login(email: str, password: str) -> str | None:
         if ok_e and ok_p:
             return "owner"
     if demo_enabled():
-        ok_e = hmac.compare_digest(email.encode(), DEMO_EMAIL.encode())
-        ok_p = hmac.compare_digest(password.encode(), DEMO_PASSWORD.encode())
-        if ok_e and ok_p:
-            return "demo"
+        for d_email, d_pass in DEMO_ACCOUNTS:
+            ok_e = hmac.compare_digest(email.encode(), d_email.encode())
+            ok_p = hmac.compare_digest(password.encode(), d_pass.encode())
+            if ok_e and ok_p:
+                return "demo"
     return None
 
 

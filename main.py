@@ -23,7 +23,7 @@ from uuid import uuid4
 
 from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -31,7 +31,9 @@ import ads
 import auth
 import connectors
 import db
-import live_sockets
+import exports
+import playbook
+import realtime
 from ai_engine import (
     analyze_omnichannel_feedback,
     answer_chat_query,
@@ -62,7 +64,7 @@ async def lifespan(_app: FastAPI):
             log.info("Sample data created in Supabase.")
     except Exception as exc:
         log.error("Could not prepare the database on start-up: %s", exc)
-    pusher = asyncio.create_task(live_sockets.worker())  # pushes new orders to open dashboards
+    pusher = asyncio.create_task(realtime.worker())  # pushes new orders to open dashboards
     try:
         yield
     finally:
@@ -73,7 +75,7 @@ app = FastAPI(title="NEXUS D2C Command Center", version="3.0.0", lifespan=lifesp
 # ---------- Login gate: every page and API call needs a session, except the public ones ----------
 PUBLIC_PATHS = {"/", "/index.html", "/health", "/favicon.ico",
                 "/api/login", "/api/logout", "/api/auth/me", "/api/auth/config", "/api/public/summary"}
-PAGES = {"/dashboard", "/dashboard.html"}
+PAGES = {"/dashboard", "/dashboard.html", "/report", "/report.html"}
 
 
 def gate(path: str, method: str, cookie: str | None) -> tuple[int, dict | str] | None:
@@ -381,21 +383,63 @@ def get_timeline():
 @app.get("/api/actions")
 @app.get("/actions")
 def get_actions():
-    return ads.get_actions()
+    """Suggested changes worked out from the live numbers, then the ones already approved with their results."""
+    return playbook.actions_list()
 
 
 @app.post("/api/execute-action")
 @app.post("/execute-action")
-def execute_action(payload: ExecuteActionRequest):
-    label = payload.target or payload.action or payload.action_id or "action"
+async def execute_action(payload: ExecuteActionRequest, request: Request):
+    """Approve a suggestion: Nexus really changes the ad or the stock, then measures what happens."""
+    if not payload.action_id:
+        raise HTTPException(status_code=422, detail="Choose a suggestion to apply.")
+    user = auth.read_token(request.cookies.get(auth.COOKIE)) or {}
     try:
-        done = ads.mark_action_done(payload.action_id, payload.target)
-        if done:
-            label = done["target"]
-    except Exception as exc:
-        log.error("Action execution error: %s", exc)
-    log.info("Executed: %s", label)
-    return {"status": "executed", "action_id": payload.action_id, "message": f"“{label}” was applied successfully."}
+        res = await run_in_threadpool(playbook.approve, payload.action_id, user.get("role", "owner"))
+    except playbook.ActionError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    log.info("Approved: %s (%s)", payload.action_id, user.get("role"))
+    return res
+
+
+@app.get("/api/whatif")
+def what_if(sku: str, platform: str):
+    """Profit per day at every daily budget for one ad, so the page can draw the curve and the slider."""
+    _check_platform(platform)
+    res = playbook.whatif(sku, platform)
+    if not res:
+        raise HTTPException(status_code=404, detail="That product is not advertised on this platform.")
+    return res
+
+
+# ---------- Exports: CSV files and the printable report ----------
+@app.get("/api/export/{kind}")
+def export_csv(kind: str):
+    if kind not in exports.KINDS:
+        raise HTTPException(status_code=404, detail="Unknown export. Use: " + ", ".join(exports.KINDS))
+    products = ads.get_products()
+    if kind == "products":
+        rows = _views(products)
+    elif kind == "ads":
+        rows = exports.ad_rows(products, ads.ads_for_products(products))
+    elif kind == "orders":
+        rows = db.select_all("orders", order="created_at", desc=True, limit=300)
+    else:
+        rows = exports.decision_rows(playbook.history(50))
+    name = f"nexus-{kind}-{db.today_local().isoformat()}.csv"
+    return Response(exports.make_csv(kind, rows), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+@app.get("/api/report")
+def report_data():
+    products = ads.get_products()
+    ad_views = ads.ads_for_products(products)
+    orders = [{k: v for k, v in o.items() if k != "created_at"}
+              for o in db.select_all("orders", order="created_at", desc=True, limit=25)]
+    return exports.build_report(CAMPAIGN_DATA["brand"], db.now_local().strftime("%d %b %Y, %I:%M %p"), _views(products),
+                                exports.ad_rows(products, ad_views), orders, playbook.actions_list(),
+                                simulated=not connectors.LIVE)
 
 
 @app.post("/api/chat")
@@ -569,7 +613,7 @@ def restock(body: RestockIn):
 async def sync_orders():
     """The "Sync now" button. New orders also go to every other open dashboard."""
     result = await run_in_threadpool(ads.sync_orders)
-    await live_sockets.publish(result)
+    await realtime.publish(result)
     return result
 
 
@@ -653,7 +697,7 @@ def change_ad(body: AdChangeIn):
 @app.post("/api/ads/simulate-day")
 async def simulate_ad_day():
     result = await run_in_threadpool(ads.simulate_day)
-    await live_sockets.publish(result)
+    await realtime.publish(result)
     return result
 
 
@@ -929,10 +973,10 @@ async def live_orders(ws: WebSocket):
     if not user or (origin and urlparse(origin).netloc != host):
         await ws.close(code=4401)  # not logged in, or opened from another website
         return
-    if not await live_sockets.hub.connect(ws):
+    if not await realtime.hub.connect(ws):
         return
     try:
-        await ws.send_text(json.dumps({"type": "hello", "role": user["role"], "tick": live_sockets.TICK}))
+        await ws.send_text(json.dumps({"type": "hello", "role": user["role"], "tick": realtime.TICK}))
         while True:
             await ws.receive_text()  # the browser never needs to say anything; this just notices a closed tab
     except WebSocketDisconnect:
@@ -940,13 +984,14 @@ async def live_orders(ws: WebSocket):
     except Exception as exc:
         log.info("WebSocket closed: %s", exc)
     finally:
-        live_sockets.hub.disconnect(ws)
+        realtime.hub.disconnect(ws)
 
 
 # ---------- Pages: landing + login at "/", dashboard at "/dashboard" (needs login) ----------
 HERE = Path(__file__).parent
 INDEX = HERE / "index.html"
 DASHBOARD = HERE / "dashboard.html"
+REPORT = HERE / "report.html"
 
 
 @app.get("/", include_in_schema=False)
@@ -963,3 +1008,11 @@ def dashboard_page():
     if DASHBOARD.exists():
         return FileResponse(DASHBOARD)
     return JSONResponse({"status": "Put dashboard.html next to main.py."})
+
+
+@app.get("/report", include_in_schema=False)
+@app.get("/report.html", include_in_schema=False)
+def report_page():
+    if REPORT.exists():
+        return FileResponse(REPORT)
+    return JSONResponse({"status": "Put report.html next to main.py."})
