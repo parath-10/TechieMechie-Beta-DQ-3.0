@@ -62,7 +62,7 @@ async def lifespan(_app: FastAPI):
             log.info("Sample data created in Supabase.")
     except Exception as exc:
         log.error("Could not prepare the database on start-up: %s", exc)
-    pusher = asyncio.create_task(realtime.worker())  # pushes new orders to open dashboards
+    pusher = asyncio.create_task(live_sockets.worker())  # pushes new orders to open dashboards
     try:
         yield
     finally:
@@ -569,7 +569,7 @@ def restock(body: RestockIn):
 async def sync_orders():
     """The "Sync now" button. New orders also go to every other open dashboard."""
     result = await run_in_threadpool(ads.sync_orders)
-    await realtime.publish(result)
+    await live_sockets.publish(result)
     return result
 
 
@@ -653,7 +653,7 @@ def change_ad(body: AdChangeIn):
 @app.post("/api/ads/simulate-day")
 async def simulate_ad_day():
     result = await run_in_threadpool(ads.simulate_day)
-    await realtime.publish(result)
+    await live_sockets.publish(result)
     return result
 
 
@@ -929,10 +929,10 @@ async def live_orders(ws: WebSocket):
     if not user or (origin and urlparse(origin).netloc != host):
         await ws.close(code=4401)  # not logged in, or opened from another website
         return
-    if not await realtime.hub.connect(ws):
+    if not await live_sockets.hub.connect(ws):
         return
     try:
-        await ws.send_text(json.dumps({"type": "hello", "role": user["role"], "tick": realtime.TICK}))
+        await ws.send_text(json.dumps({"type": "hello", "role": user["role"], "tick": live_sockets.TICK}))
         while True:
             await ws.receive_text()  # the browser never needs to say anything; this just notices a closed tab
     except WebSocketDisconnect:
@@ -940,7 +940,7 @@ async def live_orders(ws: WebSocket):
     except Exception as exc:
         log.info("WebSocket closed: %s", exc)
     finally:
-        realtime.hub.disconnect(ws)
+        live_sockets.hub.disconnect(ws)
 
 
 # ---------- Pages: landing + login at "/", dashboard at "/dashboard" (needs login) ----------
