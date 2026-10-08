@@ -132,6 +132,9 @@
  tbody tr:nth-child(2){animation-delay:.05s}tbody tr:nth-child(3){animation-delay:.1s}tbody tr:nth-child(4){animation-delay:.15s}tbody tr:nth-child(5){animation-delay:.2s}tbody tr:nth-child(n+6){animation-delay:.25s}
  @keyframes rowIn{from{opacity:0;transform:translateX(-10px)}}
  tbody tr:hover{background:rgba(255,90,60,.025)}
+ .tscroll{overflow:auto;max-height:min(26rem,65vh)}
+ .tscroll thead th{position:sticky;top:0;z-index:1;background:#0c1014;box-shadow:inset 0 -1px 0 var(--line)}
+ html.light-theme .tscroll thead th{background:#fff}
  input,textarea{background:#080b0e;border:1px solid var(--line);border-radius:10px;color:var(--bone);outline:none;transition:border-color .2s,box-shadow .2s}
  input:focus,textarea:focus{border-color:var(--ember);box-shadow:0 0 0 3px rgba(255,90,60,.08)}
  :focus-visible{outline:2px solid var(--ember);outline-offset:2px}
@@ -463,7 +466,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
     <div class="grid xl:grid-cols-3 gap-4">
       <div class="card xl:col-span-2"><div class="p-5 pb-3 flex items-center justify-between"><div class="text-base font-semibold text-white">Products at a glance</div><button class="text-sm text-acc hover:underline lnk" @click="view='inventory'">Manage stock</button></div>
-        <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Stock</th><th>Lasts</th><th>Sells per day</th><th>Margin</th></tr></thead><tbody>
+        <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><th>Stock</th><th>Lasts</th><th>Sells per day</th><th>Margin</th></tr></thead><tbody>
           <template x-for="p in products" :key="p.sku"><tr>
             <td><div class="text-white" x-text="p.name"></div><div class="text-xs text-mute" x-text="p.status==='active'?p.category||'':'Paused'"></div></td>
             <td class="min-w-[140px]"><div class="text-sm" x-text="fmt(p.stock)+' units'"></div><div class="h-1.5 bg-raise rounded mt-1 overflow-hidden"><div class="h-full rounded bar-anim" :class="cover(p)<7?'bg-verm':cover(p)<14?'bg-amber-400':'bg-emer'" :style="'width:'+Math.min(100,cover(p)>=999?100:cover(p)/30*100)+'%'"></div></div></td>
@@ -538,11 +541,11 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
       <div class="card p-4"><div class="font-medium mb-3">What to do on <span x-text="plat"></span></div><ol class="space-y-2.5 list-decimal list-inside"><template x-for="t in P[plat].todo"><li class="text-sm leading-relaxed" x-text="t"></li></template></ol></div>
     </div>
     <div class="card" x-show="P[plat].rows.length"><div class="p-4 border-b border-line font-medium">Products advertised on <span x-text="plat"></span></div>
-      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Views</th><th>Clicks</th><th>Orders</th><th>Ad spend</th><th>Profit after ads</th><th>Stock lasts</th></tr></thead><tbody>
+      <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><th>Views</th><th>Clicks</th><th>Orders</th><th>Ad spend</th><th>Profit after ads</th><th>Stock lasts</th></tr></thead><tbody>
         <template x-for="r in P[plat].rows" :key="r.sku"><tr><td x-text="r.name"></td><td x-text="fmt(r.views)"></td><td x-text="fmt(r.clicks)"></td><td x-text="fmt(r.orders)"></td><td x-text="rs(r.spend)"></td><td :class="r.profit<0?'text-verm':'text-emer'" x-text="rs(r.profit)"></td><td x-text="r.cover+' days'" :class="r.cover<7?'text-verm':''"></td></tr></template></tbody></table></div></div>
     <div class="card"><div class="p-4 border-b border-line font-medium">Customer reviews on <span x-text="plat"></span></div>
-      <template x-for="r in P[plat].reviews"><div class="px-4 py-3 border-b border-line flex gap-3 text-sm"><span class="shrink-0 w-16 text-xs pt-0.5" :class="r.s==='good'?'text-emer':r.s==='bad'?'text-verm':'text-mute'" x-text="r.s==='good'?'Happy':r.s==='bad'?'Unhappy':'Mixed'"></span><span><span x-text="r.t"></span> <span class="text-xs text-mute" x-text="'· '+r.n"></span></span></div></template>
-      <div x-show="!P[plat].reviews.length" class="px-4 py-3 text-sm text-mute">No written reviews on this platform yet.</div></div>
+      <div class="tscroll"><template x-for="r in P[plat].reviews"><div class="px-4 py-3 border-b border-line flex gap-3 text-sm"><span class="shrink-0 w-16 text-xs pt-0.5" :class="r.s==='good'?'text-emer':r.s==='bad'?'text-verm':'text-mute'" x-text="r.s==='good'?'Happy':r.s==='bad'?'Unhappy':'Mixed'"></span><span><span x-text="r.t"></span> <span class="text-xs text-mute" x-text="'· '+r.n"></span></span></div></template>
+      <div x-show="!P[plat].reviews.length" class="px-4 py-3 text-sm text-mute">No written reviews on this platform yet.</div></div></div>
   </section>
 
   <!-- PRODUCT MANAGEMENT -->
@@ -566,7 +569,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
         <button class="btn btn-p justify-center" @click="addProduct()">Add product</button></div></div>
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Your products and their stats</div><div class="text-xs text-mute">Edit cost or selling price directly in the table. Stats update straight away.</div></div>
-      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>Cost to make (₹)</th><th>Selling price (₹)</th><th>Profit per unit</th><th>Margin</th><th>Units sold</th><th>Sales</th><th>Total profit</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><th>Cost to make (₹)</th><th>Selling price (₹)</th><th>Profit per unit</th><th>Margin</th><th>Units sold</th><th>Sales</th><th>Total profit</th><th>Status</th><th></th></tr></thead><tbody>
         <template x-for="i in (booting&&!products.length?3:0)" :key="'sk'+i"><tr><td colspan="10"><div class="skel h-9"></div></td></tr></template>
         <template x-for="p in products" :key="p.sku"><tr>
           <td><div x-text="p.name"></div><div class="text-xs text-mute" x-text="p.sku+' · '+(p.category||'General')"></div></td>
@@ -603,7 +606,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
     <div class="card p-4 border-l-2 border-l-verm"><div class="text-xs text-mute mb-1">AI prediction</div><p class="text-sm leading-relaxed" x-text="forecast?forecast.inventory_advice:'Working out the forecast…'"></p></div>
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Stock and orders by platform</div><div class="text-xs text-mute">Stock goes down by itself when an order arrives from any platform. Selling rate is worked out from those orders.</div></div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><th>In stock</th><th>Total orders by platform</th><th>Selling rate</th><th>Lasts</th><th>Status</th><th>Reorder for 3 weeks</th><th>Add stock</th></tr></thead><tbody>
+    <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><th>In stock</th><th>Total orders by platform</th><th>Selling rate</th><th>Lasts</th><th>Status</th><th>Reorder for 3 weeks</th><th>Add stock</th></tr></thead><tbody>
       <template x-for="i in (booting&&!products.length?3:0)" :key="'sk'+i"><tr><td colspan="8"><div class="skel h-9"></div></td></tr></template>
       <tr x-show="!booting&&!products.length"><td colspan="8" class="text-center text-mute py-6">No products yet. Add one in Products and its stock shows up here.</td></tr>
       <template x-for="p in products" :key="p.sku"><tr :class="p.status!=='active'&&'opacity-60'">
@@ -621,7 +624,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
     </tbody></table></div></div>
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Latest orders</div><div class="text-xs text-mute">The newest orders received from all platforms.</div></div>
-    <div class="overflow-x-auto max-h-96"><table class="w-full"><thead><tr><th>Time</th><th>Order</th><th>Product</th><th>Platform</th><th>Units</th><th>Amount</th></tr></thead><tbody>
+    <div class="tscroll"><table class="w-full"><thead><tr><th>Time</th><th>Order</th><th>Product</th><th>Platform</th><th>Units</th><th>Amount</th></tr></thead><tbody>
       <template x-for="o in orders.recent" :key="o.id"><tr :class="o.fresh&&'row-new'"><td class="text-xs text-mute" x-text="o.time"></td><td class="text-xs" x-text="o.id"></td><td x-text="o.product"></td><td x-text="o.platform"></td><td x-text="o.quantity"></td><td x-text="rs(o.amount)"></td></tr></template>
       <tr x-show="!orders.recent.length"><td colspan="6" class="text-center text-mute text-sm">Waiting for the first orders…</td></tr>
     </tbody></table></div></div>
@@ -760,7 +763,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
     <div class="card" x-show="adsData.length">
       <div class="p-4 border-b border-line"><div class="font-medium">All products at a glance</div><div class="text-xs text-mute">Views and rating on each platform. Click a row to manage that product.</div></div>
-      <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Product</th><template x-for="pl in adPlatforms" :key="pl"><th x-text="pl"></th></template></tr></thead><tbody>
+      <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><template x-for="pl in adPlatforms" :key="pl"><th x-text="pl"></th></template></tr></thead><tbody>
         <template x-for="p in adsData" :key="p.sku"><tr class="cursor-pointer hover:bg-raise" @click="adSku=p.sku;openRev='';$el.closest('main').scrollTo({top:0,behavior:'smooth'})">
           <td x-text="p.name"></td>
           <template x-for="pl in adPlatforms" :key="pl"><td class="text-xs"><template x-if="p.ads.find(a=>a.platform===pl)"><div>
@@ -773,7 +776,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
     <div class="card" x-show="!adsError">
       <div class="p-4 border-b border-line flex flex-wrap items-center gap-3"><div class="mr-auto"><div class="font-medium">Posted ads</div><div class="text-xs text-mute">Every ad you posted, with its own synced numbers.</div></div>
         <select x-model="postsFilter" class="bg-ink border border-line rounded px-2 py-1.5 text-sm text-white"><option value="all">All products</option><template x-for="p in products" :key="p.sku"><option :value="p.sku" x-text="p.name"></option></template></select></div>
-      <div class="divide-y divide-line">
+      <div class="divide-y divide-line tscroll" style="max-height:min(32rem,70vh)">
         <template x-for="x in posts.filter(x=>postsFilter==='all'||x.sku===postsFilter)" :key="x.id"><div class="p-4 flex flex-wrap gap-4 items-start">
           <div class="rounded bg-raise overflow-hidden shrink-0 flex items-center justify-center text-xs text-mute relative" :class="x.format==='reel'?'w-12 h-20':'w-20 h-14'">
             <img x-show="x.media_type==='image'" :src="x.media_type==='image'?mediaSrc(x.media_url):''" alt="" class="w-full h-full object-cover">
@@ -847,17 +850,17 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   <!-- PROBLEMS TO WATCH -->
   <section x-show="view==='causal'" class="grid xl:grid-cols-2 gap-4">
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Ads people are tired of seeing</div><div class="text-xs text-mute">Same ad shown too often, so fewer people click</div></div>
-      <table class="w-full"><thead><tr><th>Ad</th><th>Times seen per person</th><th>Clicks change</th><th>How tired</th></tr></thead><tbody>
-      <template x-for="c in fatigue" :key="c.n"><tr><td x-text="c.n"></td><td x-text="c.f"></td><td class="text-verm" x-text="c.d"></td><td class="w-28"><div class="h-1.5 bg-raise rounded"><div class="h-1.5 rounded" :class="c.s>70?'bg-verm':c.s>40?'bg-amber-400':'bg-emer'" :style="'width:'+c.s+'%'"></div></div></td></tr></template></tbody></table></div>
+      <div class="tscroll"><table class="w-full"><thead><tr><th>Ad</th><th>Times seen per person</th><th>Clicks change</th><th>How tired</th></tr></thead><tbody>
+      <template x-for="c in fatigue" :key="c.n"><tr><td x-text="c.n"></td><td x-text="c.f"></td><td class="text-verm" x-text="c.d"></td><td class="w-28"><div class="h-1.5 bg-raise rounded"><div class="h-1.5 rounded" :class="c.s>70?'bg-verm':c.s>40?'bg-amber-400':'bg-emer'" :style="'width:'+c.s+'%'"></div></div></td></tr></template></tbody></table></div></div>
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Low stock warning</div><div class="text-xs text-mute">Ads on items that may run out are paused or capped</div></div>
-      <table class="w-full"><thead><tr><th>Product</th><th>Stock lasts</th><th>Daily ad spend</th><th>Status</th></tr></thead><tbody>
-      <template x-for="s in stock" :key="s.sku"><tr><td x-text="s.sku"></td><td :class="s.d<7?'text-verm':''" x-text="s.d+' days'"></td><td x-text="s.sp"></td><td class="text-xs" :class="s.g?'text-verm':'text-emer'" x-text="s.g?'Ads limited':'Fine'"></td></tr></template></tbody></table></div>
+      <div class="tscroll"><table class="w-full"><thead><tr><th>Product</th><th>Stock lasts</th><th>Daily ad spend</th><th>Status</th></tr></thead><tbody>
+      <template x-for="s in stock" :key="s.sku"><tr><td x-text="s.sku"></td><td :class="s.d<7?'text-verm':''" x-text="s.d+' days'"></td><td x-text="s.sp"></td><td class="text-xs" :class="s.g?'text-verm':'text-emer'" x-text="s.g?'Ads limited':'Fine'"></td></tr></template></tbody></table></div></div>
   </section>
 
   <!-- PROFIT CHECK -->
   <section x-show="view==='poas'" class="card"><div class="p-4 border-b border-line"><div class="font-medium">Profit for every ₹1 spent on ads</div><div class="text-xs text-mute">Counts product cost and ad spend. Above 1.00 means you make money.</div></div>
-    <table class="w-full"><thead><tr><th>Campaign</th><th>Platform</th><th>Spent</th><th>Sales per ₹1</th><th>Profit per ₹1</th><th>Advice</th></tr></thead><tbody>
-    <template x-for="p in poas" :key="p.k"><tr><td><span x-text="p.n"></span><div class="text-xs text-mute" x-show="p.h" x-text="p.h"></div></td><td class="text-mute" x-text="p.ch"></td><td x-text="rs(p.sp)"></td><td x-text="p.r.toFixed(2)"></td><td class="font-semibold" :class="p.p>=1?'text-emer':'text-verm'" x-text="p.p.toFixed(2)"></td><td x-text="poasAdvice(p)"></td></tr></template></tbody></table>
+    <div class="tscroll"><table class="w-full"><thead><tr><th>Campaign</th><th>Platform</th><th>Spent</th><th>Sales per ₹1</th><th>Profit per ₹1</th><th>Advice</th></tr></thead><tbody>
+    <template x-for="p in poas" :key="p.k"><tr><td><span x-text="p.n"></span><div class="text-xs text-mute" x-show="p.h" x-text="p.h"></div></td><td class="text-mute" x-text="p.ch"></td><td x-text="rs(p.sp)"></td><td x-text="p.r.toFixed(2)"></td><td class="font-semibold" :class="p.p>=1?'text-emer':'text-verm'" x-text="p.p.toFixed(2)"></td><td x-text="poasAdvice(p)"></td></tr></template></tbody></table></div>
     <div x-show="!poas.length" class="p-8 text-sm text-mute text-center"><span x-show="booting" class="skel h-10 block"></span><span x-show="!booting">No ad spend yet. Once an ad has spent money, its results will show here.</span></div></section>
 
   <section x-show="view==='poas'" class="card">
@@ -888,7 +891,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   <!-- THINGS TO DO -->
   <section x-show="view==='actions'" class="card"><div class="p-4 border-b border-line flex flex-wrap items-center justify-between gap-3"><div><div class="font-medium">Things to do</div><div class="text-xs text-mute">Worked out from your live numbers. Nothing happens until you approve it. After that Nexus measures what really happened and compares it with its prediction.</div></div>
     <div class="flex flex-wrap items-center gap-2"><button class="btn border border-line text-mute hover:text-white" :disabled="adsBusy" @click="simulateDay().then(()=>loadActions(true))" title="Adds one day of orders now, so results can be measured straight away"><span x-show="adsBusy" class="spin"></span>Fast-forward 1 day (demo)</button><button class="btn btn-g" @click="loadActions()">Get new suggestions</button></div></div>
-    <div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Change</th><th>Where</th><th>Amount</th><th>Expected result</th><th>How sure</th><th></th></tr></thead><tbody>
+    <div class="tscroll"><table class="w-full"><thead><tr><th>Change</th><th>Where</th><th>Amount</th><th>Expected result</th><th>How sure</th><th></th></tr></thead><tbody>
     <template x-for="i in (actionsLoading?3:0)" :key="'sk'+i"><tr><td colspan="6"><div class="skel h-9"></div></td></tr></template>
     <tr x-show="!actionsLoading&&!actions.length"><td colspan="6" class="text-center text-mute py-8"><div class="text-emer text-lg">All clear</div>Ads and stock look healthy, so there is nothing to change right now. New suggestions appear here as orders come in.</td></tr>
     <template x-for="a in actions" :key="a.id"><tr class="align-top"><td x-text="a.type==='pause'?'Stop an ad':a.type==='restock'?'Reorder stock':'Change budget'"></td><td x-text="a.target"></td><td x-text="a.change"></td>
@@ -917,18 +920,18 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
         <div class="bg-raise rounded p-3"><div class="text-xs text-mute">Reviews</div><div class="text-xl font-semibold" x-text="fmt(monTotal('reviews'))+(monRating?' · ★ '+monRating:'')"></div></div>
       </div>
       <div class="px-4"><div class="w-full overflow-x-auto" x-html="mon.svg" role="img" aria-label="Month-wise units sold, views and reviews"></div></div>
-      <div class="overflow-x-auto mt-4"><table class="w-full"><thead><tr><th>Month</th><th>Units sold</th><th>Sales</th><th>Views</th><th>Clicks</th><th>Ad spend</th><th>Reviews</th><th>Avg rating</th></tr></thead><tbody>
+      <div class="tscroll mt-4"><table class="w-full"><thead><tr><th>Month</th><th>Units sold</th><th>Sales</th><th>Views</th><th>Clicks</th><th>Ad spend</th><th>Reviews</th><th>Avg rating</th></tr></thead><tbody>
         <template x-for="r in mon.rows" :key="r.month"><tr><td x-text="r.label"></td><td x-text="fmt(r.units)"></td><td x-text="rs(r.sales)"></td><td x-text="fmt(r.views)"></td><td x-text="r.clicks?fmt(r.clicks):'-'"></td><td x-text="r.ad_spend?rs(r.ad_spend):'-'"></td><td x-text="fmt(r.reviews)"></td><td x-text="r.avg_rating?'★ '+r.avg_rating:'-'"></td></tr></template>
       </tbody></table></div>
     </div>
   </section>
   <section x-show="view==='timeline'" class="grid xl:grid-cols-2 gap-4">
     <div class="card p-5"><div class="font-medium">24/7 monitoring alerts</div><div class="text-xs text-mute mb-4">Problems and wins the system spotted for you</div>
-      <div class="space-y-3"><template x-for="al in alerts" :key="al.id"><div class="bg-raise p-3.5 rounded border-l-4" :class="al.severity==='critical'?'border-l-verm':al.severity==='warning'?'border-l-amber-400':'border-l-emer'">
+      <div class="space-y-3 tscroll"><template x-for="al in alerts" :key="al.id"><div class="bg-raise p-3.5 rounded border-l-4" :class="al.severity==='critical'?'border-l-verm':al.severity==='warning'?'border-l-amber-400':'border-l-emer'">
         <div class="flex justify-between gap-3"><span class="font-medium text-sm text-white" x-text="al.title"></span><span class="text-xs text-mute shrink-0" x-text="al.timestamp"></span></div>
         <p class="text-sm text-mute mt-1 leading-relaxed" x-text="al.message"></p></div></template></div></div>
     <div class="card p-5"><div class="font-medium">System timeline</div><div class="text-xs text-mute mb-4">What the system did recently, oldest first</div>
-      <div class="border-l border-line ml-1 pl-5 space-y-5"><template x-for="(ev,i) in timeline" :key="i"><div class="relative">
+      <div class="border-l border-line ml-1 pl-5 space-y-5 tscroll"><template x-for="(ev,i) in timeline" :key="i"><div class="relative">
         <span class="absolute -left-[26px] top-1 w-2.5 h-2.5 rounded-full" :class="ev.type==='warning'?'bg-amber-400':ev.type==='success'?'bg-emer':'bg-verm'"></span>
         <div class="text-xs text-mute" x-text="ev.time"></div><div class="text-sm font-medium text-white mt-0.5" x-text="ev.title"></div><div class="text-sm text-mute leading-relaxed" x-text="ev.desc"></div></div></template></div></div>
   </section>
