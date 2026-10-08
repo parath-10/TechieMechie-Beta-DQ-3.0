@@ -1061,7 +1061,9 @@ function nexus(){
   kpis:[{l:'Profit on ad spend',v:'+38.2%',s:'better than last week',c:'text-emer'},{l:'Reply speed',v:'<450ms',s:'time to get an answer',c:'text-white'},{l:'Orders matched',v:'99.8%',s:'orders checked against real sales',c:'text-emer'},{l:'Safety checks on',v:'7',s:'2 stepped in today',c:'text-verm'}],
   sources:[{n:'Meta Ads',rec:'184,220',sync:'2 min ago',ok:true},{n:'TikTok Ads',rec:'96,410',sync:'3 min ago',ok:true},{n:'Shopify',rec:'41,905',sync:'1 min ago',ok:true},{n:'Amazon',rec:'22,318',sync:'14 min ago',ok:false}],
   fatigue:[{n:'Summer Drop – UGC v3',f:'4.8',d:'-31%',s:92},{n:'Monsoon Sale – Static',f:'3.9',d:'-22%',s:68},{n:'Founder Story – Reel',f:'1.7',d:'-3%',s:14},{n:'Bundle Offer – Carousel',f:'2.9',d:'-12%',s:41}],
-  get stock(){return this.products.map(p=>({sku:p.name,d:this.cover(p),sp:rs(p.ad_spend||0),g:this.cover(p)<7}))},
+  get stock(){return this.products.map(p=>{const ap=this.adsData.find(x=>x.sku===p.sku);/* real daily budgets of running ads; the stored p.ad_spend is only a fallback while ads have not loaded */
+   const daily=ap?(ap.ads||[]).filter(a=>a.status==='active').reduce((t,a)=>t+(a.daily_budget||0),0):(p.ad_spend||0);
+   return{sku:p.name,d:this.cover(p),sp:rs(daily),g:this.cover(p)<7}})},
   /* Profit Check rows come from the ads in the database (/api/ads), same formula as Platform Analysis:
      profit per ₹1 = (profit after ads + spend) / spend, sales per ₹1 = sales / spend */
   get poas(){const rows=[];this.adsData.forEach(p=>(p.ads||[]).forEach(a=>{const sp=a.spend||0;if(sp<=0)return;

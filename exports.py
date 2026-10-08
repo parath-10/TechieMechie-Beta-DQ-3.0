@@ -69,10 +69,14 @@ def build_report(brand: str, generated: str, products: list[dict[str, Any]], ads
     profit = sum(p.get("total_profit", 0) for p in products)
     spend = sum(a.get("spend", 0) or 0 for a in ads)
     at_risk = [p for p in products if p.get("status") == "active" and p.get("days_of_cover", 999) < 14]
+    # Profit before ads, split by where the sale came from: ads (each ad's profit after ads + its spend) and everything else
+    # (website and other sales that had no ad cost). The Ads table only covers the first part.
+    from_ads = sum((a.get("profit_after_ads") or 0) + (a.get("spend") or 0) for a in ads)
     return {
         "brand": brand, "generated": generated, "simulated": simulated,
         "kpis": {"revenue": round(revenue), "profit": round(profit), "ad_spend": round(spend),
-                 "profit_after_ads": round(profit - spend), "units": sum(p.get("units_sold", 0) for p in products),
+                 "profit_after_ads": round(profit - spend), "profit_from_ads": round(from_ads),
+                 "profit_other": round(profit - from_ads), "units": sum(p.get("units_sold", 0) for p in products),
                  "products": len(products), "at_risk": len(at_risk)},
         "products": products, "ads": ads, "orders": orders[:25],
         "todo": [a for a in actions if a.get("status") == "pending"][:6],
