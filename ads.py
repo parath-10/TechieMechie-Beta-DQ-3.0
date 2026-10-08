@@ -8,6 +8,7 @@ Once real platform APIs are connected, replace `generate_orders()` and `seed()` 
 """
 
 import hashlib
+import math
 import os
 import random
 import time
@@ -325,14 +326,31 @@ def remove_product(sku: str) -> None:
 # =====================================================================
 # Orders from platforms (simulated until real APIs are connected)
 # =====================================================================
+# How many orders a daily ad budget brings. More budget helps, but with diminishing returns: the audience
+# is limited, so orders level off at CEILING times the usual number. Used by the order simulation,
+# the "what if" slider and the predictions of the Things To Do page, so all three agree.
+CEILING = 2.5
+_S_FACTOR = -1 / math.log(1 - 1 / CEILING)  # makes the curve pass through (usual budget, usual orders)
+
+
+def expected_units(p: dict[str, Any], platform: str, ad: dict[str, Any], budget: float | None = None) -> float:
+    """Expected orders per day from one ad at a given daily budget (default: its current budget)."""
+    b = float(ad["daily_budget"] if budget is None else budget)
+    if b <= 0:
+        return 0.0
+    if ad.get("seed_rate") and ad.get("seed_budget"):
+        u0, b0 = float(ad["seed_rate"]), float(ad["seed_budget"])
+    else:
+        vpr, ctr, cr = PLATFORM_RATES[platform]
+        u0, b0 = 1000 * vpr * ctr * cr * 0.3, 1000.0
+    return CEILING * u0 * (1 - math.exp(-b / (_S_FACTOR * b0)))
+
+
 def _demand_per_day(p: dict[str, Any], platform: str, ad: dict[str, Any] | None) -> float:
-    """Expected orders per day from one channel. Ads with a bigger budget bring more orders."""
+    """Expected orders per day from one channel."""
     if platform == "Website":
         return p.get("website_rate") or 1.0
-    if ad.get("seed_rate"):
-        return ad["seed_rate"] * ad["daily_budget"] / ad["seed_budget"]
-    vpr, ctr, cr = PLATFORM_RATES[platform]
-    return ad["daily_budget"] * vpr * ctr * cr * 0.3
+    return expected_units(p, platform, ad)
 
 
 def _count(r: random.Random, expected: float) -> int:
@@ -446,9 +464,16 @@ def sync_orders(products: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {**generate_orders(days), "synced_at": label}
 
 
+def bonus_days() -> float:
+    """Days fast-forwarded with the demo button (they count as time passed when measuring results)."""
+    row = one("app_state", key="sim_bonus")
+    return float(((row or {}).get("value") or {}).get("days", 0))
+
+
 def simulate_day(products: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """DEMO button: bring in a whole day of orders at once."""
     res = generate_orders(1.0)
+    client().table("app_state").upsert({"key": "sim_bonus", "value": {"days": bonus_days() + 1}}).execute()
     conn = connectors.connected_set()
     running = sum(1 for a in _ads_rows(status="active") if connectors.is_connected(a["platform"], conn))
     return {**res, "ads": running}
