@@ -31,7 +31,7 @@ import ads
 import auth
 import connectors
 import db
-import realtime
+import live_sockets
 from ai_engine import (
     analyze_omnichannel_feedback,
     answer_chat_query,
