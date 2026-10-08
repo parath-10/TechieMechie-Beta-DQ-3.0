@@ -1114,7 +1114,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    catch(e){if(!e.status||e.status>=500)this.online=false;throw e}finally{clearTimeout(t)}
   },
   async ping(){try{const r=await fetch(this.backend.replace(/\/+$/,'')+'/health',{signal:AbortSignal.timeout(3000)});this.online=r.status<500}catch(e){this.online=false}},
-  fallback(w,e){this.warn=`Could not reach the server (${e.message||'network error'}). Showing sample data for ${w} so you can keep working.`},
+  fallback(w,e){this.warn=`Could not reach the server (${e.detail||e.message||'network error'}). Showing sample data for ${w} so you can keep working.`},
   toast(msg,ok=true){const id=Math.random();this.toasts.push({id,msg,ok});setTimeout(()=>this.toasts=this.toasts.filter(t=>t.id!==id),4000)},
   async runDiagnosis(){this.diag.loading=true;this.diag.data=null;
    try{const d=await this.api('/api/diagnose');this.diag.data={root_cause:d.root_cause??d.rootCause??'-',confidence:d.confidence??d.confidence_score,opportunity_score:d.opportunity_score??d.opportunityScore??'-',recommended_action:d.recommended_action??d.recommendedAction??'-'};this.diag.source='From your server'}

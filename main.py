@@ -130,6 +130,13 @@ async def _config_error(_request: Request, exc: Exception):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
+@app.exception_handler(Exception)
+async def _unexpected(request: Request, exc: Exception):
+    """Any other bug: write the full traceback to the server log and tell the page what went wrong."""
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": f"Server error in {request.url.path}: {type(exc).__name__}: {exc}"})
+
+
 CAMPAIGN_DATA: dict[str, Any] = {
     "brand": "Lumen & Co.",
     "currency": "INR",

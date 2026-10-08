@@ -250,8 +250,19 @@ def history(limit: int = 6) -> list[dict[str, Any]]:
 
 
 def actions_list() -> list[dict[str, Any]]:
-    """Pending suggestions first, then what was already approved with how it turned out."""
-    return [_public(s) for s in build_suggestions()] + history()
+    """Pending suggestions first, then what was already approved with how it turned out.
+    One half failing must not hide the other, so each is read on its own and the problem is logged."""
+    try:
+        todo = [_public(s) for s in build_suggestions()]
+    except Exception:  # noqa: BLE001
+        log.exception("Could not work out new suggestions")
+        todo = []
+    try:
+        done = history()
+    except Exception:  # noqa: BLE001
+        log.exception("Could not read past decisions")
+        done = []
+    return todo + done
 
 
 # =====================================================================
