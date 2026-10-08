@@ -321,6 +321,8 @@ html.light-theme .bg-raise{background:#f0f2ef!important}
 html.light-theme .border-line{border-color:rgba(18,22,20,.14)!important}
 html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!important}
 
+@keyframes rowIn{0%{background:rgba(63,182,139,.35);transform:translateY(-6px);opacity:0}100%{background:transparent;transform:none;opacity:1}}
+ .row-new td{animation:rowIn 1.8s ease-out}
 </style>
 </head>
 <body x-data="nexus()" x-init="init()" x-cloak class="h-screen flex overflow-hidden">
@@ -354,7 +356,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
       <div class="relative" x-data="{conn:false}" @click.outside="conn=false" @keydown.escape.window="conn=false">
         <button class="pill" @click="conn=!conn" :aria-expanded="conn" aria-label="Connection status">
           <span class="dot" :class="online===true&&!warn?'bg-emer':online===null?'bg-mute':'bg-amber-400'"></span>
-          <span x-text="online===true?'Live data':online===false?'Sample data':'Connecting…'"></span>
+          <span x-text="online===true?(rt.up?'Live · streaming':'Live data'):online===false?'Sample data':'Connecting…'"></span>
           <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-mute transition-transform" :class="conn&&'rotate-180'" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div x-show="conn" x-transition.origin.top.right class="pop">
@@ -558,7 +560,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
     <div class="card p-4 flex flex-wrap items-center gap-3 border-l-2" :class="orders.error?'border-l-amber-400':'border-l-emer'">
       <span class="w-2.5 h-2.5 rounded-full" :class="orders.error?'bg-amber-400':'bg-emer animate-pulse'"></span>
       <div class="min-w-0"><div class="font-medium text-sm" x-text="orders.error?'Order sync paused':orders.connected.length?'Orders sync automatically from your platforms':'Waiting for connected accounts'"></div>
-        <div class="text-xs text-mute" x-text="orders.error||(orders.connected.length?'Connected: '+orders.connected.join(', ')+' · checks every 30 seconds · last sync '+(orders.last||'-'):'No accounts connected yet, so no orders are coming in. Connect them in Connected Platforms.')"></div></div>
+        <div class="text-xs text-mute" x-text="orders.error||(orders.connected.length?'Connected: '+orders.connected.join(', ')+(rt.up?' · live stream on, new orders appear instantly':rt.mode==='polling'?' · live stream unavailable, checking every 30 seconds':' · connecting to live stream…')+' · last sync '+(orders.last||'-'):'No accounts connected yet, so no orders are coming in. Connect them in Connected Platforms.')"></div></div>
       <div class="ml-auto flex items-center gap-3"><span class="text-xs text-amber-300 max-w-xs">Orders are simulated until accounts are connected (next step).</span>
         <button class="btn btn-g" :disabled="orders.busy" @click="syncOrders(true)"><span x-show="orders.busy" class="spin"></span>Sync now</button></div>
     </div>
@@ -590,7 +592,7 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
 
     <div class="card"><div class="p-4 border-b border-line"><div class="font-medium">Latest orders</div><div class="text-xs text-mute">The newest orders received from all platforms.</div></div>
     <div class="overflow-x-auto max-h-96"><table class="w-full"><thead><tr><th>Time</th><th>Order</th><th>Product</th><th>Platform</th><th>Units</th><th>Amount</th></tr></thead><tbody>
-      <template x-for="o in orders.recent" :key="o.id"><tr><td class="text-xs text-mute" x-text="o.time"></td><td class="text-xs" x-text="o.id"></td><td x-text="o.product"></td><td x-text="o.platform"></td><td x-text="o.quantity"></td><td x-text="rs(o.amount)"></td></tr></template>
+      <template x-for="o in orders.recent" :key="o.id"><tr :class="o.fresh&&'row-new'"><td class="text-xs text-mute" x-text="o.time"></td><td class="text-xs" x-text="o.id"></td><td x-text="o.product"></td><td x-text="o.platform"></td><td x-text="o.quantity"></td><td x-text="rs(o.amount)"></td></tr></template>
       <tr x-show="!orders.recent.length"><td colspan="6" class="text-center text-mute text-sm">Waiting for the first orders…</td></tr>
     </tbody></table></div></div>
   </section>
@@ -984,7 +986,7 @@ function nexus(){
  return{
   P,nav:[{id:'overview',label:'Overview',g:'Insights',i:'M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z'},{id:'causal',label:'Problems to Watch',g:'Insights',i:'M12 3l10 18H2zM12 10v4M12 17.5v.01'},{id:'poas',label:'Profit Check',g:'Insights',i:'M3 17l6-6 4 4 8-8M15 7h6v6'},{id:'platforms',label:'Platform Analysis',g:'Insights',i:'M4 20V10M10 20V4M16 20v-7M2 20h20'},{id:'products',label:'Products',g:'Manage',i:'M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8M12 13v8'},{id:'inventory',label:'Inventory',g:'Manage',i:'M3 7h18v13H3zM3 7l2-4h14l2 4M9 11h6'},{id:'ads',label:'Ads',g:'Manage',i:'M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM15 9a3 3 0 010 6M18 6a7 7 0 010 12'},{id:'actions',label:'Things To Do',g:'Workspace',i:'M9 6h11M9 12h11M9 18h11M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2'},{id:'ingestion',label:'Connected Platforms',g:'Workspace',i:'M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1'},{id:'timeline',label:'Time Log & Monthly',g:'Workspace',i:'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2'}],
   view:'overview',plat:'Instagram',backend:(location.protocol.startsWith('http')&&!['5500','5501','5173','3000','8080'].includes(location.port))?location.origin:'http://localhost:8000',online:null,warn:'',toasts:[],charts:{},fmt,rs,
-  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},me:{},aiMeta:{},aiBusy:false,
+  products:[],forecast:null,alerts:[],timeline:[],np:{name:'',category:'',price:'',cost:'',stock:''},rsk:{},flash:{},rt:{up:false,tries:0,mode:'connecting'},orders:{byProduct:{},recent:[],connected:[],last:'',busy:false,error:'',session:0,sessionUnits:0},adsData:[],adSku:'',adBudget:{},openRev:'',adsBusy:false,adsError:'',adPlatforms:AD_PLATFORMS,salesChannels:[...AD_PLATFORMS,'Website'],mon:{sku:'all',plat:'all',rows:[],error:'',svg:''},conn:{list:[],live:false,open:'',busy:'',error:'',form:{account_name:'',values:{}}},post:{open:false,sku:'',plats:[],format:'image',headline:'',text:'',cta:'Shop now',media:{url:'',type:'',preview:'',name:'',seconds:null,w:null,h:null,progress:0,uploading:false},budget:500,days:'7',busy:false},formats:FORMATS,formatSupport:FORMAT_SUPPORT,REELNAME,posts:[],postsFilter:'all',SEV,notes:[],notesOpen:false,popup:null,popupQueue:[],popped:{},ov:{rows:[],svg:''},PCOLOR,POSTBADGE,ai:{live:null,reason:'',checking:false},tip:{show:false,loading:false,title:'',text:''},tipCache:{},me:{},aiMeta:{},aiBusy:false,
   diag:{loading:false,data:null,source:''},fb:{text:'',loading:false,report:null},actions:JSON.parse(JSON.stringify(MOCK.actions)),
   chat:{open:false,input:'',busy:false,msgs:[{me:false,t:"Hi! Ask me anything about your products, sales, profit, stock, ads or platforms."}]},
   kpis:[{l:'Profit on ad spend',v:'+38.2%',s:'better than last week',c:'text-emer'},{l:'Reply speed',v:'<450ms',s:'time to get an answer',c:'text-white'},{l:'Orders matched',v:'99.8%',s:'orders checked against real sales',c:'text-emer'},{l:'Safety checks on',v:'7',s:'2 stepped in today',c:'text-verm'}],
@@ -1029,8 +1031,8 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
   init(){
    this.rebuildPlat();this.$watch('adsData',()=>this.rebuildPlat());this.$watch('products',()=>this.rebuildPlat());this.$watch('orders.byProduct',()=>this.rebuildPlat());
    try{this.backend=localStorage.getItem('nexus_backend')||this.backend}catch(e){}
-   Chart.defaults.color='#8a948e';Chart.defaults.borderColor='#1e262c';Chart.defaults.font.family="'Onest',sans-serif";this.ping();setInterval(()=>this.ping(),15000);
-   this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);setInterval(()=>this.syncOrders(),30000);
+   Chart.defaults.color='#8a948e';Chart.defaults.borderColor='#1e262c';Chart.defaults.font.family="'Onest',sans-serif";this.ping();setInterval(()=>{if(!this.rt.up)this.ping()},15000);
+   this.loadProducts().then(()=>this.syncOrders());this.loadForecast();this.checkAi(false);this.loadConnections();this.loadOverview();this.loadAds();this.loadPosts();setInterval(()=>this.loadAiAlerts(),300000);this.connectRt();
    this.pull('/api/actions',d=>{if(Array.isArray(d)&&d.length)this.actions=d},MOCK.actions);
    this.loadAiAlerts();this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT);
    setTimeout(()=>this.showTipOnce(),1500);this.loadAiMeta();this.loadMe();
@@ -1105,13 +1107,54 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
   async loadOrders(){try{const d=await this.api('/api/orders');this.orders.byProduct=d.by_product||{};this.orders.recent=d.recent||[];this.orders.connected=d.connected||[];this.orders.last=d.last_sync||this.orders.last}catch(e){}},
   async syncOrders(manual=false){if(this.orders.busy)return;this.orders.busy=true;
    try{const d=await this.api('/api/orders/sync',{method:'POST'});this.orders.error='';this.orders.last=d.synced_at;
-    this.orders.session+=d.orders;this.orders.sessionUnits+=d.units;
+    this.applyOrders(d);
     await Promise.all([this.refreshProducts(),this.loadOrders()]);
     await Promise.all([this.loadAds(),this.loadPosts()]);if(this.view==='overview')this.loadOverview();if(this.view==='timeline')this.loadMonthly();if(this.view==='ingestion')this.loadConnections();this.buildNotes();
     if(d.orders&&(manual||this.view==='inventory'))this.toast(d.orders+' new order'+(d.orders>1?'s':'')+' synced, stock updated');
     else if(manual)this.toast('No new orders since the last sync')}
    catch(e){this.orders.error=e.status===404?'Your server is running old code. Copy the new main.py and ads.py, then restart the server.':'The server is not reachable, so orders cannot sync. Start it with: uvicorn main:app --port 8000'}
    this.orders.busy=false},
+  /* ---------- real-time: new orders arrive over a WebSocket (no polling) ---------- */
+  _seen:new Set(),
+  applyOrders(d){
+   const list=Array.isArray(d.new_orders)?d.new_orders:null;
+   if(!list){this.orders.session+=d.orders||0;this.orders.sessionUnits+=d.units||0;return 0}
+   const fresh=list.filter(o=>!this._seen.has(o.id));if(!fresh.length)return 0;
+   if(this._seen.size>3000)this._seen.clear();fresh.forEach(o=>this._seen.add(o.id));
+   this.orders.session+=fresh.length;this.orders.sessionUnits+=fresh.reduce((s,o)=>s+(o.quantity||0),0);
+   if(d.synced_at)this.orders.last=d.synced_at;
+   fresh.forEach(o=>{
+    const m=this.orders.byProduct[o.sku]||(this.orders.byProduct[o.sku]={});m[o.platform]=(m[o.platform]||0)+o.quantity;
+    const p=this.products.find(x=>x.sku===o.sku);
+    if(p){p.stock=Math.max(0,p.stock-o.quantity);p.units_sold=(p.units_sold||0)+o.quantity;this.flash[o.sku]=true;setTimeout(()=>this.flash[o.sku]=false,2500)}});
+   this.orders.recent=[...fresh.slice().reverse().map(o=>({...o,fresh:true})),...this.orders.recent].slice(0,25);
+   setTimeout(()=>this.orders.recent.forEach(o=>{if(o.fresh)o.fresh=false}),2500);
+   return fresh.length},
+  rtRefreshSoon(){/* heavier numbers (days of cover, ads, charts) refresh at most once every 20 s while orders flow */
+   if(this._rf)return;
+   this._rf=setTimeout(async()=>{this._rf=null;
+    try{await this.refreshProducts();
+     if(['ads','platforms','causal','poas'].includes(this.view)){await Promise.all([this.loadAds(),this.loadPosts()])}
+     if(this.view==='overview')this.loadOverview();if(this.view==='timeline')this.loadMonthly();this.buildNotes()}catch(e){}},20000)},
+  connectRt(){
+   if(this._ws||this._rtStop)return;
+   if(!this._rtHook){this._rtHook=true;
+    document.addEventListener('visibilitychange',()=>{
+     if(document.hidden){clearTimeout(this._hideT);this._hideT=setTimeout(()=>{this._rtStop=true;this.stopPoll();this.rt.mode='paused';if(this._ws)this._ws.close(1000,'tab hidden')},60000)}
+     else{clearTimeout(this._hideT);if(this._rtStop){this._rtStop=false;this.rt.tries=0;this.rt.mode='connecting';this.syncOrders();this.connectRt()}}})}
+   let url;try{const u=new URL(this.backend.replace(/\/+$/,'')+'/ws');u.protocol=u.protocol==='https:'?'wss:':'ws:';url=u.href}catch(e){this.rtFail();return}
+   let ws;try{ws=new WebSocket(url)}catch(e){this.rtFail();return}
+   this._ws=ws;
+   ws.onopen=()=>{this.rt.up=true;this.rt.tries=0;this.rt.mode='live';this.online=true;this.stopPoll();if(this._rtWasDown){this._rtWasDown=false;this.syncOrders()}};
+   ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}
+    if(m.type==='orders'){const n=this.applyOrders(m);if(n){this.rtRefreshSoon();if(this.view==='inventory')this.toast(n+' new order'+(n>1?'s':'')+' just arrived, stock updated')}}};
+   ws.onclose=()=>{this._ws=null;this.rt.up=false;if(this._rtStop)return;this._rtWasDown=true;this.rtFail()};
+   ws.onerror=()=>{try{ws.close()}catch(e){}}},
+  rtFail(){/* try again with growing waits; after 3 misses fall back to slow polling so the page still works */
+   this.rt.tries++;if(this.rt.tries>=3){this.rt.mode='polling';this.startPoll()}else this.rt.mode='connecting';
+   setTimeout(()=>this.connectRt(),Math.min(30000,1000*2**Math.min(this.rt.tries,5)))},
+  startPoll(){if(!this._poll)this._poll=setInterval(()=>this.syncOrders(),30000)},
+  stopPoll(){clearInterval(this._poll);this._poll=null},
   /* ---------- advertisement ---------- */
   get allAds(){return this.adsData.flatMap(p=>p.ads)},
   get adProduct(){return this.adsData.find(p=>p.sku===this.adSku)},

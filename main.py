@@ -7,18 +7,21 @@ Run locally:  uvicorn main:app --reload --port 8000   (with SUPABASE_URL etc. in
 Then open http://localhost:8000
 """
 
+import asyncio
+import json
 import logging
 import os
 import re
 import tempfile
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -28,6 +31,7 @@ import ads
 import auth
 import connectors
 import db
+import realtime
 from ai_engine import (
     analyze_omnichannel_feedback,
     answer_chat_query,
@@ -58,7 +62,11 @@ async def lifespan(_app: FastAPI):
             log.info("Sample data created in Supabase.")
     except Exception as exc:
         log.error("Could not prepare the database on start-up: %s", exc)
-    yield
+    pusher = asyncio.create_task(realtime.worker())  # pushes new orders to open dashboards
+    try:
+        yield
+    finally:
+        pusher.cancel()
 
 
 app = FastAPI(title="NEXUS D2C Command Center", version="3.0.0", lifespan=lifespan)
@@ -558,8 +566,11 @@ def restock(body: RestockIn):
 
 
 @app.post("/api/orders/sync")
-def sync_orders():
-    return ads.sync_orders()
+async def sync_orders():
+    """The "Sync now" button. New orders also go to every other open dashboard."""
+    result = await run_in_threadpool(ads.sync_orders)
+    await realtime.publish(result)
+    return result
 
 
 @app.get("/api/orders")
@@ -640,8 +651,10 @@ def change_ad(body: AdChangeIn):
 
 
 @app.post("/api/ads/simulate-day")
-def simulate_ad_day():
-    return ads.simulate_day()
+async def simulate_ad_day():
+    result = await run_in_threadpool(ads.simulate_day)
+    await realtime.publish(result)
+    return result
 
 
 @app.get("/api/monthly")
@@ -903,6 +916,31 @@ def who_am_i(request: Request):
 def auth_config():
     """Tells the login page whether to show the demo account box."""
     return {"demo": auth.demo_enabled(), "owner_configured": auth.owner_configured()}
+
+
+# ---------- Real-time: new orders pushed over a WebSocket ----------
+@app.websocket("/ws")
+async def live_orders(ws: WebSocket):
+    """The dashboard opens this once and receives every new order the moment it arrives.
+    The login gate above only covers normal requests, so the session cookie is checked here too."""
+    user = auth.read_token(ws.cookies.get(auth.COOKIE))
+    origin = ws.headers.get("origin")
+    host = ws.headers.get("x-forwarded-host") or ws.headers.get("host") or ""
+    if not user or (origin and urlparse(origin).netloc != host):
+        await ws.close(code=4401)  # not logged in, or opened from another website
+        return
+    if not await realtime.hub.connect(ws):
+        return
+    try:
+        await ws.send_text(json.dumps({"type": "hello", "role": user["role"], "tick": realtime.TICK}))
+        while True:
+            await ws.receive_text()  # the browser never needs to say anything; this just notices a closed tab
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        log.info("WebSocket closed: %s", exc)
+    finally:
+        realtime.hub.disconnect(ws)
 
 
 # ---------- Pages: landing + login at "/", dashboard at "/dashboard" (needs login) ----------

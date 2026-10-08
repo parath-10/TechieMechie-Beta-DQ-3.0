@@ -430,6 +430,8 @@ def generate_orders(days: float) -> dict[str, Any]:
     if any(payload.values()):
         rpc("nexus_apply_sync", {"p": payload})
     connectors.mark_sync_many(synced)
+    out["new_orders"] = payload["orders"]  # pushed to the dashboards over the WebSocket
+    out["stock"] = payload["stock"]
     return out
 
 
