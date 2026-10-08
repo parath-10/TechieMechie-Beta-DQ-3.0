@@ -855,9 +855,10 @@ html.light-theme .hover\:bg-white\/5:hover{background:rgba(18,22,20,.05)!importa
   </section>
 
   <!-- PROFIT CHECK -->
-  <section x-show="view==='poas'" class="card"><div class="p-4 border-b border-line"><div class="font-medium">Profit for every ₹1 spent on ads</div><div class="text-xs text-mute">Counts product cost, shipping, returns and platform fees. Above 1.00 means you make money.</div></div>
+  <section x-show="view==='poas'" class="card"><div class="p-4 border-b border-line"><div class="font-medium">Profit for every ₹1 spent on ads</div><div class="text-xs text-mute">Counts product cost and ad spend. Above 1.00 means you make money.</div></div>
     <table class="w-full"><thead><tr><th>Campaign</th><th>Platform</th><th>Spent</th><th>Sales per ₹1</th><th>Profit per ₹1</th><th>Advice</th></tr></thead><tbody>
-    <template x-for="p in poas" :key="p.n"><tr><td x-text="p.n"></td><td class="text-mute" x-text="p.ch"></td><td x-text="p.sp"></td><td x-text="p.r.toFixed(2)"></td><td class="font-semibold" :class="p.p>=1?'text-emer':'text-verm'" x-text="p.p.toFixed(2)"></td><td x-text="p.p>=1.3?'Spend more':p.p>=1?'Keep as is':'Reduce or stop'"></td></tr></template></tbody></table></section>
+    <template x-for="p in poas" :key="p.k"><tr><td><span x-text="p.n"></span><div class="text-xs text-mute" x-show="p.h" x-text="p.h"></div></td><td class="text-mute" x-text="p.ch"></td><td x-text="rs(p.sp)"></td><td x-text="p.r.toFixed(2)"></td><td class="font-semibold" :class="p.p>=1?'text-emer':'text-verm'" x-text="p.p.toFixed(2)"></td><td x-text="poasAdvice(p)"></td></tr></template></tbody></table>
+    <div x-show="!poas.length" class="p-8 text-sm text-mute text-center"><span x-show="booting" class="skel h-10 block"></span><span x-show="!booting">No ad spend yet. Once an ad has spent money, its results will show here.</span></div></section>
 
   <section x-show="view==='poas'" class="card">
     <div class="p-4 border-b border-line flex flex-wrap items-end gap-3"><div class="mr-auto"><div class="font-medium">What if I change a budget?</div><div class="text-xs text-mute">Drag the slider to see orders and profit at a different daily budget. Extra budget brings extra orders, but each extra ₹1 brings fewer than the one before.</div></div>
@@ -1058,7 +1059,12 @@ function nexus(){
   sources:[{n:'Meta Ads',rec:'184,220',sync:'2 min ago',ok:true},{n:'TikTok Ads',rec:'96,410',sync:'3 min ago',ok:true},{n:'Shopify',rec:'41,905',sync:'1 min ago',ok:true},{n:'Amazon',rec:'22,318',sync:'14 min ago',ok:false}],
   fatigue:[{n:'Summer Drop – UGC v3',f:'4.8',d:'-31%',s:92},{n:'Monsoon Sale – Static',f:'3.9',d:'-22%',s:68},{n:'Founder Story – Reel',f:'1.7',d:'-3%',s:14},{n:'Bundle Offer – Carousel',f:'2.9',d:'-12%',s:41}],
   get stock(){return this.products.map(p=>({sku:p.name,d:this.cover(p),sp:rs(p.ad_spend||0),g:this.cover(p)<7}))},
-  poas:[{n:'Founder Story',ch:'TikTok',sp:'₹4.2 lakh',r:3.9,p:1.62},{n:'New customers',ch:'Meta',sp:'₹6.8 lakh',r:3.1,p:1.34},{n:'Retargeting (14 days)',ch:'Meta',sp:'₹2.1 lakh',r:5.2,p:1.08},{n:'Sponsored: Linen Shirt',ch:'Amazon',sp:'₹1.6 lakh',r:2.8,p:0.94},{n:'Summer Drop – UGC v3',ch:'Meta',sp:'₹3.4 lakh',r:1.9,p:0.71}],
+  /* Profit Check rows come from the ads in the database (/api/ads), same formula as Platform Analysis:
+     profit per ₹1 = (profit after ads + spend) / spend, sales per ₹1 = sales / spend */
+  get poas(){const rows=[];this.adsData.forEach(p=>(p.ads||[]).forEach(a=>{const sp=a.spend||0;if(sp<=0)return;
+   rows.push({k:p.sku+'|'+a.platform,n:p.name,h:(a.post&&a.post.headline)||'',ch:a.platform,status:a.status,sp,r:(a.sales||0)/sp,p:((a.profit_after_ads||0)+sp)/sp})}));
+   return rows.sort((x,y)=>y.p-x.p)},
+  poasAdvice(r){return r.status==='stopped'?'Stopped':r.status==='paused'?'Paused':r.p>=1.3?'Spend more':r.p>=1?'Keep as is':'Reduce or stop'},
   sample:"Love the fabric, fits perfectly!\nColour looks different from the Instagram ad, more grey than blue.\nDelivery took 9 days to Coimbatore, too slow.\nBest shirt I've bought this year, ordering another.\nSize M runs slightly small.",
   get current(){return this.nav.find(n=>n.id===this.view)},
   get pending(){return this.actions.filter(a=>a.status!=='done').length},
@@ -1101,7 +1107,7 @@ kIcon(l){return {'Sales':'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l8 6','Orders':
    this.pull('/api/actions',d=>{if(Array.isArray(d))this.actions=d;this.actionsLoading=false},MOCK.actions);
    this.loadAiAlerts();this.pull('/api/timeline',d=>this.timeline=Array.isArray(d)&&d.length?d:FBT,FBT);
    setTimeout(()=>this.showTipOnce(),1500);this.loadAiMeta();this.loadMe();
-   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{this.navOpen=false;if(v==='actions')this.loadActions(true);if(v==='poas')this.wiInit();redraw();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
+   const redraw=()=>{if(this.view==='platforms')this.$nextTick(()=>this.drawPlat())};this.$watch('view',v=>{this.navOpen=false;if(v==='actions')this.loadActions(true);if(v==='poas'){this.loadAds();this.wiInit()}redraw();if(v==='overview')this.loadOverview();if(v==='ads'){this.loadAds();this.loadPosts();this.loadConnections()}if(v==='timeline')this.loadMonthly();if(v==='ingestion')this.loadConnections()});
    this.pull('/api/ads/platforms',d=>{if(d&&d.ad_platforms){this.adPlatforms=d.ad_platforms;this.salesChannels=d.sales_channels;if(d.formats)this.formats=d.formats;if(d.format_support)this.formatSupport=d.format_support}},{ad_platforms:AD_PLATFORMS,sales_channels:[...AD_PLATFORMS,'Website']});this.$watch('plat',redraw);
   },
   saveUrl(){this.backend=this.backend.trim().replace(/\/+$/,'');try{localStorage.setItem('nexus_backend',this.backend)}catch(e){}},
